@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Modal from '@/components/Modal'
+import EditableCell from '@/components/EditableCell'
 import { useColumnResize } from '@/hooks/useColumnResize'
 import type { Account, AccountType, Priority, Owner, EngagementType } from '@/types'
 import {
@@ -138,6 +139,16 @@ export default function SchoolsPage() {
     ) : (
       <ChevronDown size={12} className="text-indigo-500" />
     )
+  }
+
+  async function saveField(account: Account, field: keyof Account, value: string) {
+    const updated = { ...account, [field]: value }
+    await fetch(`/api/accounts/${account.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    })
+    load()
   }
 
   function openEdit(a: Account) {
@@ -326,24 +337,60 @@ export default function SchoolsPage() {
                 {filtered.map((a) => {
                   const overdue = a.nextFollowUpDate && a.nextFollowUpDate < today()
                   const cells = [
-                    <span className="font-medium text-gray-900">{a.name}</span>,
-                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{a.type}</span>,
-                    <span className="text-gray-600">{a.region || '—'}</span>,
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[a.priority] || ''}`}>{a.priority}</span>,
-                    <span className="text-gray-600">{a.owner}</span>,
-                    <span className="text-gray-600">{a.goal || '—'}</span>,
-                    <span className="text-gray-600">{a.principal || '—'}</span>,
-                    a.engagementType ? <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ENGAGEMENT_COLORS[a.engagementType] || 'bg-gray-100 text-gray-600'}`}>{a.engagementType}</span> : <span>—</span>,
-                    <span className="text-gray-600">{formatDate(a.midpointDate)}</span>,
-                    <span className="text-gray-600">{a.boyData || '—'}</span>,
-                    <span className="text-gray-600">{a.moyData || '—'}</span>,
-                    <span className="text-gray-600">{a.eoyData || '—'}</span>,
-                    <span className="text-gray-600">{a.assessmentName || '—'}</span>,
-                    <span className="text-gray-600">{a.mathCurriculum || '—'}</span>,
-                    <span className="text-gray-600">{a.elaCurriculum || '—'}</span>,
-                    <span className="text-gray-600">{formatDate(a.lastContactDate)}</span>,
-                    <span className={`font-medium ${overdue ? 'text-red-600' : 'text-gray-600'}`}>{formatDate(a.nextFollowUpDate)}</span>,
-                    <span className="text-gray-600">{a.nextAction || '—'}</span>,
+                    <EditableCell value={a.name} onSave={(v) => saveField(a, 'name', v)}>
+                      <span className="font-medium text-gray-900">{a.name}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.type} fieldType="select" options={SCHOOL_TYPES} onSave={(v) => saveField(a, 'type', v)}>
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{a.type}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.region} fieldType="select" options={REGIONS} onSave={(v) => saveField(a, 'region', v)}>
+                      <span className="text-gray-600">{a.region || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.priority} fieldType="select" options={PRIORITIES} onSave={(v) => saveField(a, 'priority', v)}>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[a.priority] || ''}`}>{a.priority}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.owner} fieldType="select" options={OWNERS} onSave={(v) => saveField(a, 'owner', v)}>
+                      <span className="text-gray-600">{a.owner}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.goal} onSave={(v) => saveField(a, 'goal', v)}>
+                      <span className="text-gray-600">{a.goal || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.principal} onSave={(v) => saveField(a, 'principal', v)}>
+                      <span className="text-gray-600">{a.principal || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.engagementType} fieldType="select" options={ENGAGEMENT_TYPES} onSave={(v) => saveField(a, 'engagementType', v)}>
+                      {a.engagementType ? <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ENGAGEMENT_COLORS[a.engagementType] || 'bg-gray-100 text-gray-600'}`}>{a.engagementType}</span> : <span>—</span>}
+                    </EditableCell>,
+                    <EditableCell value={a.midpointDate} fieldType="date" onSave={(v) => saveField(a, 'midpointDate', v)}>
+                      <span className="text-gray-600">{formatDate(a.midpointDate)}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.boyData} fieldType="number" onSave={(v) => saveField(a, 'boyData', v)}>
+                      <span className="text-gray-600">{a.boyData || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.moyData} fieldType="number" onSave={(v) => saveField(a, 'moyData', v)}>
+                      <span className="text-gray-600">{a.moyData || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.eoyData} fieldType="number" onSave={(v) => saveField(a, 'eoyData', v)}>
+                      <span className="text-gray-600">{a.eoyData || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.assessmentName} onSave={(v) => saveField(a, 'assessmentName', v)}>
+                      <span className="text-gray-600">{a.assessmentName || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.mathCurriculum} onSave={(v) => saveField(a, 'mathCurriculum', v)}>
+                      <span className="text-gray-600">{a.mathCurriculum || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.elaCurriculum} onSave={(v) => saveField(a, 'elaCurriculum', v)}>
+                      <span className="text-gray-600">{a.elaCurriculum || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.lastContactDate} fieldType="date" onSave={(v) => saveField(a, 'lastContactDate', v)}>
+                      <span className="text-gray-600">{formatDate(a.lastContactDate)}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.nextFollowUpDate} fieldType="date" onSave={(v) => saveField(a, 'nextFollowUpDate', v)}>
+                      <span className={`font-medium ${overdue ? 'text-red-600' : 'text-gray-600'}`}>{formatDate(a.nextFollowUpDate)}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.nextAction} onSave={(v) => saveField(a, 'nextAction', v)}>
+                      <span className="text-gray-600">{a.nextAction || '—'}</span>
+                    </EditableCell>,
                   ]
                   return (
                     <tr key={a.id} className="hover:bg-gray-50 group">

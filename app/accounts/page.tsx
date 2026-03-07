@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Modal from '@/components/Modal'
+import EditableCell from '@/components/EditableCell'
 import { useColumnResize } from '@/hooks/useColumnResize'
 import type { Account, AccountType, Priority, Owner } from '@/types'
 import {
@@ -216,6 +217,16 @@ export default function AccountsPage() {
     setShowForm(true)
   }
 
+  async function saveField(account: Account, field: keyof Account, value: string) {
+    const updated = { ...account, [field]: value }
+    await fetch(`/api/accounts/${account.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    })
+    load()
+  }
+
   function openEdit(a: Account) {
     setEditing(a)
     const { id, ...rest } = a
@@ -421,14 +432,30 @@ export default function AccountsPage() {
                 {filtered.map((a) => {
                   const overdue = a.nextFollowUpDate && a.nextFollowUpDate < today()
                   const cells = [
-                    <span className="font-medium text-gray-900">{a.name}</span>,
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${typeColor(a.type)}`}>{a.type}</span>,
-                    <span className="text-gray-600">{a.region || '—'}</span>,
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[a.priority] || ''}`}>{a.priority}</span>,
-                    <span className="text-gray-600">{a.owner}</span>,
-                    <span className="text-gray-600">{formatDate(a.lastContactDate)}</span>,
-                    <span className={`font-medium ${overdue ? 'text-red-600' : 'text-gray-600'}`}>{formatDate(a.nextFollowUpDate)}</span>,
-                    <span className="text-gray-600">{a.nextAction || '—'}</span>,
+                    <EditableCell value={a.name} onSave={(v) => saveField(a, 'name', v)}>
+                      <span className="font-medium text-gray-900">{a.name}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.type} fieldType="select" options={ACCOUNT_TYPES} onSave={(v) => saveField(a, 'type', v)}>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${typeColor(a.type)}`}>{a.type}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.region} fieldType="select" options={REGIONS} onSave={(v) => saveField(a, 'region', v)}>
+                      <span className="text-gray-600">{a.region || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.priority} fieldType="select" options={PRIORITIES} onSave={(v) => saveField(a, 'priority', v)}>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[a.priority] || ''}`}>{a.priority}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.owner} fieldType="select" options={OWNERS} onSave={(v) => saveField(a, 'owner', v)}>
+                      <span className="text-gray-600">{a.owner}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.lastContactDate} fieldType="date" onSave={(v) => saveField(a, 'lastContactDate', v)}>
+                      <span className="text-gray-600">{formatDate(a.lastContactDate)}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.nextFollowUpDate} fieldType="date" onSave={(v) => saveField(a, 'nextFollowUpDate', v)}>
+                      <span className={`font-medium ${overdue ? 'text-red-600' : 'text-gray-600'}`}>{formatDate(a.nextFollowUpDate)}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.nextAction} onSave={(v) => saveField(a, 'nextAction', v)}>
+                      <span className="text-gray-600">{a.nextAction || '—'}</span>
+                    </EditableCell>,
                   ]
                   return (
                     <tr key={a.id} className="hover:bg-gray-50 group">

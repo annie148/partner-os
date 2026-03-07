@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Modal from '@/components/Modal'
+import EditableCell from '@/components/EditableCell'
 import { useColumnResize } from '@/hooks/useColumnResize'
 import type { Account, AccountType, Priority, Owner, AskStatus } from '@/types'
 import {
@@ -152,6 +153,16 @@ export default function FundersPage() {
     ) : (
       <ChevronDown size={12} className="text-indigo-500" />
     )
+  }
+
+  async function saveField(account: Account, field: keyof Account, value: string) {
+    const updated = { ...account, [field]: value }
+    await fetch(`/api/accounts/${account.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    })
+    load()
   }
 
   function openEdit(a: Account) {
@@ -322,17 +333,39 @@ export default function FundersPage() {
                 {filtered.map((a) => {
                   const overdue = a.nextFollowUpDate && a.nextFollowUpDate < today()
                   const cells = [
-                    <span className="font-medium text-gray-900">{a.name}</span>,
-                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{a.type}</span>,
-                    <span className="text-gray-600">{a.region || '—'}</span>,
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[a.priority] || ''}`}>{a.priority}</span>,
-                    <span className="text-gray-600">{a.owner}</span>,
-                    a.askStatus ? <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ASK_STATUS_COLORS[a.askStatus] || 'bg-gray-100 text-gray-600'}`}>{a.askStatus}</span> : <span>—</span>,
-                    <span className="text-gray-600">{formatCurrency(a.target)}</span>,
-                    <span className="text-gray-600">{formatCurrency(a.committedAmount)}</span>,
-                    <span className="text-gray-600">{formatDate(a.lastContactDate)}</span>,
-                    <span className={`font-medium ${overdue ? 'text-red-600' : 'text-gray-600'}`}>{formatDate(a.nextFollowUpDate)}</span>,
-                    <span className="text-gray-600">{a.nextAction || '—'}</span>,
+                    <EditableCell value={a.name} onSave={(v) => saveField(a, 'name', v)}>
+                      <span className="font-medium text-gray-900">{a.name}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.type} fieldType="select" options={FUNDER_TYPES} onSave={(v) => saveField(a, 'type', v)}>
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{a.type}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.region} fieldType="select" options={REGIONS} onSave={(v) => saveField(a, 'region', v)}>
+                      <span className="text-gray-600">{a.region || '—'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.priority} fieldType="select" options={PRIORITIES} onSave={(v) => saveField(a, 'priority', v)}>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[a.priority] || ''}`}>{a.priority}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.owner} fieldType="select" options={OWNERS} onSave={(v) => saveField(a, 'owner', v)}>
+                      <span className="text-gray-600">{a.owner}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.askStatus} fieldType="select" options={ASK_STATUSES} onSave={(v) => saveField(a, 'askStatus', v)}>
+                      {a.askStatus ? <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ASK_STATUS_COLORS[a.askStatus] || 'bg-gray-100 text-gray-600'}`}>{a.askStatus}</span> : <span>—</span>}
+                    </EditableCell>,
+                    <EditableCell value={a.target} fieldType="number" onSave={(v) => saveField(a, 'target', v)}>
+                      <span className="text-gray-600">{formatCurrency(a.target)}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.committedAmount} fieldType="number" onSave={(v) => saveField(a, 'committedAmount', v)}>
+                      <span className="text-gray-600">{formatCurrency(a.committedAmount)}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.lastContactDate} fieldType="date" onSave={(v) => saveField(a, 'lastContactDate', v)}>
+                      <span className="text-gray-600">{formatDate(a.lastContactDate)}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.nextFollowUpDate} fieldType="date" onSave={(v) => saveField(a, 'nextFollowUpDate', v)}>
+                      <span className={`font-medium ${overdue ? 'text-red-600' : 'text-gray-600'}`}>{formatDate(a.nextFollowUpDate)}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.nextAction} onSave={(v) => saveField(a, 'nextAction', v)}>
+                      <span className="text-gray-600">{a.nextAction || '—'}</span>
+                    </EditableCell>,
                   ]
                   return (
                     <tr key={a.id} className="hover:bg-gray-50 group">
