@@ -7,7 +7,7 @@ function getAuth() {
   if (!key) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY not set')
   // Vercel converts \n sequences in env vars to actual newline characters,
   // which makes JSON.parse fail with "bad control character". Re-escape first.
-  const sanitized = key.replace(/\n/g, '\\n').replace(/\r/g, '')
+  const sanitized = key.trim().replace(/\n/g, '\\n').replace(/\r/g, '')
   const credentials = JSON.parse(sanitized)
   return new google.auth.GoogleAuth({
     credentials,
