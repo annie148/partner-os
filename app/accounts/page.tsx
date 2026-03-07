@@ -106,6 +106,7 @@ export default function AccountsPage() {
   const [filterType, setFilterType] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
   const [filterOwner, setFilterOwner] = useState('')
+  const [filterRegion, setFilterRegion] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -153,6 +154,7 @@ export default function AccountsPage() {
     if (filterType) list = list.filter((a) => a.type === filterType)
     if (filterPriority) list = list.filter((a) => a.priority === filterPriority)
     if (filterOwner) list = list.filter((a) => a.owner === filterOwner)
+    if (filterRegion) list = list.filter((a) => a.region === filterRegion)
     list = [...list].sort((a, b) => {
       const av = a[sortKey] || ''
       const bv = b[sortKey] || ''
@@ -161,7 +163,7 @@ export default function AccountsPage() {
         : String(bv).localeCompare(String(av))
     })
     return list
-  }, [accounts, search, filterType, filterPriority, filterOwner, sortKey, sortDir])
+  }, [accounts, search, filterType, filterPriority, filterOwner, filterRegion, sortKey, sortDir])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -330,9 +332,19 @@ export default function AccountsPage() {
           <option value="">All Owners</option>
           {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
-        {(search || filterType || filterPriority || filterOwner) && (
+        <select
+          value={filterRegion}
+          onChange={(e) => setFilterRegion(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="">All Regions</option>
+          {[...new Set(accounts.map((a) => a.region).filter(Boolean))].sort().map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
+        {(search || filterType || filterPriority || filterOwner || filterRegion) && (
           <button
-            onClick={() => { setSearch(''); setFilterType(''); setFilterPriority(''); setFilterOwner('') }}
+            onClick={() => { setSearch(''); setFilterType(''); setFilterPriority(''); setFilterOwner(''); setFilterRegion('') }}
             className="text-sm text-gray-400 hover:text-gray-600 px-2"
           >
             Clear filters
