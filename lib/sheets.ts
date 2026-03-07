@@ -5,11 +5,10 @@ const SHEET_ID = '1zM5CZ6FXF-17LY0zTntuPQ5boWdXGnhmC-1y64y2Bgs'
 function getAuth() {
   const key = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
   if (!key) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY not set')
-  const credentials = JSON.parse(key)
-  // Handle escaped newlines common when pasting JSON into env vars
-  if (credentials.private_key) {
-    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n')
-  }
+  // Vercel converts \n sequences in env vars to actual newline characters,
+  // which makes JSON.parse fail with "bad control character". Re-escape first.
+  const sanitized = key.replace(/\n/g, '\\n').replace(/\r/g, '')
+  const credentials = JSON.parse(sanitized)
   return new google.auth.GoogleAuth({
     credentials,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
