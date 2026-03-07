@@ -23,6 +23,22 @@ export async function PUT(
       body.nextFollowUpDate,
       body.nextAction,
       body.notes,
+      body.askStatus || '',
+      body.target || '',
+      body.committedAmount || '',
+      body.goal || '',
+      body.principal || '',
+      body.engagementType || '',
+      body.partnerDashboardLink || '',
+      body.partnerEnrollmentToolkit || '',
+      body.googleDriveFile || '',
+      body.midpointDate || '',
+      body.boyData || '',
+      body.moyData || '',
+      body.eoyData || '',
+      body.assessmentName || '',
+      body.mathCurriculum || '',
+      body.elaCurriculum || '',
     ])
     return NextResponse.json({ ok: true })
   } catch (e) {

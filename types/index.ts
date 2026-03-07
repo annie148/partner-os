@@ -12,6 +12,17 @@ export type Priority = 'High' | 'Medium' | 'Low'
 export type Owner = 'Annie' | 'Sam' | 'Gab'
 export type TaskStatus = 'Not Started' | 'In Progress' | 'Complete'
 
+export type AskStatus =
+  | 'Committed'
+  | 'Submitted/Ask Made'
+  | 'Declined'
+  | 'Need to Qualify'
+  | 'Cultivating'
+  | 'Received'
+  | 'No Ask'
+
+export type EngagementType = 'High Level' | 'Medium Level' | 'Low Level'
+
 export interface Account {
   id: string
   name: string
@@ -23,6 +34,24 @@ export interface Account {
   nextFollowUpDate: string
   nextAction: string
   notes: string
+  // Funder fields
+  askStatus: AskStatus | string
+  target: string
+  committedAmount: string
+  // School/District fields
+  goal: string
+  principal: string
+  engagementType: EngagementType | string
+  partnerDashboardLink: string
+  partnerEnrollmentToolkit: string
+  googleDriveFile: string
+  midpointDate: string
+  boyData: string
+  moyData: string
+  eoyData: string
+  assessmentName: string
+  mathCurriculum: string
+  elaCurriculum: string
 }
 
 export interface Contact {

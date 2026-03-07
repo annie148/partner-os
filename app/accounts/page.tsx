@@ -64,6 +64,22 @@ const EMPTY: Omit<Account, 'id'> = {
   nextFollowUpDate: '',
   nextAction: '',
   notes: '',
+  askStatus: '',
+  target: '',
+  committedAmount: '',
+  goal: '',
+  principal: '',
+  engagementType: '',
+  partnerDashboardLink: '',
+  partnerEnrollmentToolkit: '',
+  googleDriveFile: '',
+  midpointDate: '',
+  boyData: '',
+  moyData: '',
+  eoyData: '',
+  assessmentName: '',
+  mathCurriculum: '',
+  elaCurriculum: '',
 }
 
 type SortKey = keyof Account
@@ -188,7 +204,8 @@ export default function AccountsPage() {
 
   function openEdit(a: Account) {
     setEditing(a)
-    setForm({ name: a.name, type: a.type, region: a.region, priority: a.priority, owner: a.owner, lastContactDate: a.lastContactDate, nextFollowUpDate: a.nextFollowUpDate, nextAction: a.nextAction, notes: a.notes })
+    const { id, ...rest } = a
+    setForm(rest)
     setShowForm(true)
   }
 
