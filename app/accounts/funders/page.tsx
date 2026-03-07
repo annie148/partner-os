@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Modal from '@/components/Modal'
+import { useColumnResize } from '@/hooks/useColumnResize'
 import type { Account, AccountType, Priority, Owner, AskStatus } from '@/types'
 import {
   Download,
@@ -198,6 +199,22 @@ export default function FundersPage() {
     URL.revokeObjectURL(url)
   }
 
+  const COLUMNS: [SortKey, string][] = [
+    ['name', 'Name'],
+    ['type', 'Type'],
+    ['region', 'Region'],
+    ['priority', 'Priority'],
+    ['owner', 'Owner'],
+    ['askStatus', 'Ask Status'],
+    ['target', 'Target'],
+    ['committedAmount', 'Committed Amount'],
+    ['lastContactDate', 'Last Contact'],
+    ['nextFollowUpDate', 'Next Follow-up'],
+    ['nextAction', 'Next Action'],
+  ]
+
+  const { widths, onMouseDown } = useColumnResize(COLUMNS.length, 130)
+
   const hasFilters = search || filterType || filterPriority || filterOwner || filterRegion || filterStatus
 
   const input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
@@ -276,33 +293,26 @@ export default function FundersPage() {
           <div className="p-8 text-center text-sm text-gray-400">No funders found.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="text-sm" style={{ minWidth: '100%' }}>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {(
-                    [
-                      ['name', 'Name'],
-                      ['type', 'Type'],
-                      ['region', 'Region'],
-                      ['priority', 'Priority'],
-                      ['owner', 'Owner'],
-                      ['askStatus', 'Ask Status'],
-                      ['target', 'Target'],
-                      ['committedAmount', 'Committed Amount'],
-                      ['lastContactDate', 'Last Contact'],
-                      ['nextFollowUpDate', 'Next Follow-up'],
-                      ['nextAction', 'Next Action'],
-                    ] as [SortKey, string][]
-                  ).map(([key, label]) => (
+                  {COLUMNS.map(([key, label], i) => (
                     <th
                       key={key}
                       onClick={() => toggleSort(key)}
-                      className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none whitespace-nowrap"
+                      style={{ width: widths[i], minWidth: widths[i] }}
+                      className={`relative text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none whitespace-nowrap ${
+                        i === 0 ? 'sticky left-0 z-10 bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
+                      }`}
                     >
                       <span className="flex items-center gap-1">
                         {label}
                         <SortIcon col={key} />
                       </span>
+                      <div
+                        onMouseDown={(e) => { e.stopPropagation(); onMouseDown(i, e) }}
+                        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/40 z-20"
+                      />
                     </th>
                   ))}
                   <th className="px-4 py-3 w-16" />
@@ -311,27 +321,32 @@ export default function FundersPage() {
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((a) => {
                   const overdue = a.nextFollowUpDate && a.nextFollowUpDate < today()
+                  const cells = [
+                    <span className="font-medium text-gray-900">{a.name}</span>,
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{a.type}</span>,
+                    <span className="text-gray-600">{a.region || '—'}</span>,
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[a.priority] || ''}`}>{a.priority}</span>,
+                    <span className="text-gray-600">{a.owner}</span>,
+                    a.askStatus ? <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ASK_STATUS_COLORS[a.askStatus] || 'bg-gray-100 text-gray-600'}`}>{a.askStatus}</span> : <span>—</span>,
+                    <span className="text-gray-600">{formatCurrency(a.target)}</span>,
+                    <span className="text-gray-600">{formatCurrency(a.committedAmount)}</span>,
+                    <span className="text-gray-600">{formatDate(a.lastContactDate)}</span>,
+                    <span className={`font-medium ${overdue ? 'text-red-600' : 'text-gray-600'}`}>{formatDate(a.nextFollowUpDate)}</span>,
+                    <span className="text-gray-600">{a.nextAction || '—'}</span>,
+                  ]
                   return (
                     <tr key={a.id} className="hover:bg-gray-50 group">
-                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{a.name}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{a.type}</span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.region || '—'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[a.priority] || ''}`}>{a.priority}</span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.owner}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {a.askStatus ? (
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ASK_STATUS_COLORS[a.askStatus] || 'bg-gray-100 text-gray-600'}`}>{a.askStatus}</span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatCurrency(a.target)}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatCurrency(a.committedAmount)}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDate(a.lastContactDate)}</td>
-                      <td className={`px-4 py-3 whitespace-nowrap font-medium ${overdue ? 'text-red-600' : 'text-gray-600'}`}>{formatDate(a.nextFollowUpDate)}</td>
-                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{a.nextAction || '—'}</td>
+                      {cells.map((cell, i) => (
+                        <td
+                          key={i}
+                          style={{ width: widths[i], minWidth: widths[i], maxWidth: widths[i] }}
+                          className={`px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap ${
+                            i === 0 ? 'sticky left-0 z-10 bg-white group-hover:bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
+                          }`}
+                        >
+                          {cell}
+                        </td>
+                      ))}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => openEdit(a)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"><Pencil size={13} /></button>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Modal from '@/components/Modal'
+import { useColumnResize } from '@/hooks/useColumnResize'
 import type { Account, AccountType, Priority, Owner, EngagementType } from '@/types'
 import {
   Download,
@@ -184,6 +185,30 @@ export default function SchoolsPage() {
     URL.revokeObjectURL(url)
   }
 
+  const COLUMNS: [SortKey, string][] = [
+    ['name', 'Name'],
+    ['type', 'Type'],
+    ['region', 'Region'],
+    ['priority', 'Priority'],
+    ['owner', 'Owner'],
+    ['goal', 'Goal'],
+    ['principal', 'Principal'],
+    ['engagementType', 'Engagement'],
+    ['midpointDate', 'Midpoint Date'],
+    ['boyData', 'BOY'],
+    ['moyData', 'MOY'],
+    ['eoyData', 'EOY'],
+    ['assessmentName', 'Assessment'],
+    ['mathCurriculum', 'Math Curriculum'],
+    ['elaCurriculum', 'ELA Curriculum'],
+    ['lastContactDate', 'Last Contact'],
+    ['nextFollowUpDate', 'Next Follow-up'],
+    ['nextAction', 'Next Action'],
+  ]
+
+  // +1 for the Links column
+  const { widths, onMouseDown } = useColumnResize(COLUMNS.length + 1, 120)
+
   const hasFilters = search || filterType || filterPriority || filterOwner || filterRegion || filterEngagement
 
   const input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
@@ -262,78 +287,81 @@ export default function SchoolsPage() {
           <div className="p-8 text-center text-sm text-gray-400">No schools found.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="text-sm" style={{ minWidth: '100%' }}>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {(
-                    [
-                      ['name', 'Name'],
-                      ['type', 'Type'],
-                      ['region', 'Region'],
-                      ['priority', 'Priority'],
-                      ['owner', 'Owner'],
-                      ['goal', 'Goal'],
-                      ['principal', 'Principal'],
-                      ['engagementType', 'Engagement'],
-                      ['midpointDate', 'Midpoint Date'],
-                      ['boyData', 'BOY'],
-                      ['moyData', 'MOY'],
-                      ['eoyData', 'EOY'],
-                      ['assessmentName', 'Assessment'],
-                      ['mathCurriculum', 'Math Curriculum'],
-                      ['elaCurriculum', 'ELA Curriculum'],
-                      ['lastContactDate', 'Last Contact'],
-                      ['nextFollowUpDate', 'Next Follow-up'],
-                      ['nextAction', 'Next Action'],
-                    ] as [SortKey, string][]
-                  ).map(([key, label]) => (
+                  {COLUMNS.map(([key, label], i) => (
                     <th
                       key={key}
                       onClick={() => toggleSort(key)}
-                      className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none whitespace-nowrap"
+                      style={{ width: widths[i], minWidth: widths[i] }}
+                      className={`relative text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none whitespace-nowrap ${
+                        i === 0 ? 'sticky left-0 z-10 bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
+                      }`}
                     >
                       <span className="flex items-center gap-1">
                         {label}
                         <SortIcon col={key} />
                       </span>
+                      <div
+                        onMouseDown={(e) => { e.stopPropagation(); onMouseDown(i, e) }}
+                        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/40 z-20"
+                      />
                     </th>
                   ))}
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Links</th>
+                  <th
+                    style={{ width: widths[COLUMNS.length], minWidth: widths[COLUMNS.length] }}
+                    className="relative text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
+                  >
+                    Links
+                    <div
+                      onMouseDown={(e) => { e.stopPropagation(); onMouseDown(COLUMNS.length, e) }}
+                      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/40 z-20"
+                    />
+                  </th>
                   <th className="px-4 py-3 w-16" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((a) => {
                   const overdue = a.nextFollowUpDate && a.nextFollowUpDate < today()
+                  const cells = [
+                    <span className="font-medium text-gray-900">{a.name}</span>,
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{a.type}</span>,
+                    <span className="text-gray-600">{a.region || '—'}</span>,
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[a.priority] || ''}`}>{a.priority}</span>,
+                    <span className="text-gray-600">{a.owner}</span>,
+                    <span className="text-gray-600">{a.goal || '—'}</span>,
+                    <span className="text-gray-600">{a.principal || '—'}</span>,
+                    a.engagementType ? <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ENGAGEMENT_COLORS[a.engagementType] || 'bg-gray-100 text-gray-600'}`}>{a.engagementType}</span> : <span>—</span>,
+                    <span className="text-gray-600">{formatDate(a.midpointDate)}</span>,
+                    <span className="text-gray-600">{a.boyData || '—'}</span>,
+                    <span className="text-gray-600">{a.moyData || '—'}</span>,
+                    <span className="text-gray-600">{a.eoyData || '—'}</span>,
+                    <span className="text-gray-600">{a.assessmentName || '—'}</span>,
+                    <span className="text-gray-600">{a.mathCurriculum || '—'}</span>,
+                    <span className="text-gray-600">{a.elaCurriculum || '—'}</span>,
+                    <span className="text-gray-600">{formatDate(a.lastContactDate)}</span>,
+                    <span className={`font-medium ${overdue ? 'text-red-600' : 'text-gray-600'}`}>{formatDate(a.nextFollowUpDate)}</span>,
+                    <span className="text-gray-600">{a.nextAction || '—'}</span>,
+                  ]
                   return (
                     <tr key={a.id} className="hover:bg-gray-50 group">
-                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{a.name}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{a.type}</span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.region || '—'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_COLORS[a.priority] || ''}`}>{a.priority}</span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.owner}</td>
-                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{a.goal || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.principal || '—'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {a.engagementType ? (
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ENGAGEMENT_COLORS[a.engagementType] || 'bg-gray-100 text-gray-600'}`}>{a.engagementType}</span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDate(a.midpointDate)}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.boyData || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.moyData || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.eoyData || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.assessmentName || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.mathCurriculum || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.elaCurriculum || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatDate(a.lastContactDate)}</td>
-                      <td className={`px-4 py-3 whitespace-nowrap font-medium ${overdue ? 'text-red-600' : 'text-gray-600'}`}>{formatDate(a.nextFollowUpDate)}</td>
-                      <td className="px-4 py-3 text-gray-600 max-w-xs truncate">{a.nextAction || '—'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      {cells.map((cell, i) => (
+                        <td
+                          key={i}
+                          style={{ width: widths[i], minWidth: widths[i], maxWidth: widths[i] }}
+                          className={`px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap ${
+                            i === 0 ? 'sticky left-0 z-10 bg-white group-hover:bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
+                          }`}
+                        >
+                          {cell}
+                        </td>
+                      ))}
+                      <td
+                        style={{ width: widths[COLUMNS.length], minWidth: widths[COLUMNS.length], maxWidth: widths[COLUMNS.length] }}
+                        className="px-4 py-3 overflow-hidden whitespace-nowrap"
+                      >
                         <div className="flex items-center gap-3">
                           <LinkCell url={a.partnerDashboardLink} label="Dashboard" />
                           <LinkCell url={a.partnerEnrollmentToolkit} label="Toolkit" />
