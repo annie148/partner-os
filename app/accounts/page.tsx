@@ -26,6 +26,7 @@ const ACCOUNT_TYPES: AccountType[] = [
 ]
 const PRIORITIES: Priority[] = ['High', 'Medium', 'Low']
 const OWNERS: Owner[] = ['Annie', 'Sam', 'Gab']
+const REGIONS = ['Bay Area', 'DC', 'LA', 'National', 'NY']
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   High: 'bg-red-100 text-red-700',
@@ -338,9 +339,7 @@ export default function AccountsPage() {
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <option value="">All Regions</option>
-          {[...new Set(accounts.map((a) => a.region).filter(Boolean))].sort().map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
+          {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         {(search || filterType || filterPriority || filterOwner || filterRegion) && (
           <button
@@ -472,7 +471,10 @@ export default function AccountsPage() {
             </select>
           </Field>
           <Field label="Region">
-            <input type="text" value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className={input} placeholder="e.g. Northeast" />
+            <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className={select}>
+              <option value="">— Select region —</option>
+              {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
           </Field>
           <Field label="Priority">
             <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value as Priority })} className={select}>
