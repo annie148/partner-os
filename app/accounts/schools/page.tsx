@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import Modal from '@/components/Modal'
 import EditableCell from '@/components/EditableCell'
 import { useColumnResize } from '@/hooks/useColumnResize'
-import type { Account, AccountType, Priority, Owner, EngagementType } from '@/types'
+import type { Account, AccountType, Priority, Owner, EngagementType, Contact } from '@/types'
 import {
   Download,
   Search,
@@ -63,6 +63,7 @@ type SortDir = 'asc' | 'desc'
 
 export default function SchoolsPage() {
   const [accounts, setAccounts] = useState<Account[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -85,11 +86,14 @@ export default function SchoolsPage() {
 
   function load() {
     setLoading(true)
-    fetch('/api/accounts')
-      .then((r) => r.json())
-      .then((data) => {
-        const all: Account[] = Array.isArray(data) ? data : []
+    Promise.all([
+      fetch('/api/accounts').then((r) => r.json()),
+      fetch('/api/contacts').then((r) => r.json()),
+    ])
+      .then(([accountData, contactData]) => {
+        const all: Account[] = Array.isArray(accountData) ? accountData : []
         setAccounts(all.filter((a) => SCHOOL_TYPES.includes(a.type)))
+        setContacts(Array.isArray(contactData) ? contactData : [])
         setLoading(false)
       })
       .catch(() => {
@@ -127,12 +131,24 @@ export default function SchoolsPage() {
     return list
   }, [accounts, search, filterType, filterPriority, filterOwner, filterRegion, filterEngagement, sortKey, sortDir])
 
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortKey(key); setSortDir('asc') }
+  const primaryContactMap = useMemo(() => {
+    const map: Record<string, Contact> = {}
+    for (const c of contacts) {
+      if (c.accountId && !map[c.accountId]) {
+        map[c.accountId] = c
+      }
+    }
+    return map
+  }, [contacts])
+
+  function toggleSort(key: string) {
+    if (key.startsWith('_')) return
+    const k = key as SortKey
+    if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(k); setSortDir('asc') }
   }
 
-  function SortIcon({ col }: { col: SortKey }) {
+  function SortIcon({ col }: { col: string }) {
     if (sortKey !== col) return <ChevronUp size={12} className="text-gray-300" />
     return sortDir === 'asc' ? (
       <ChevronUp size={12} className="text-indigo-500" />
@@ -196,9 +212,11 @@ export default function SchoolsPage() {
     URL.revokeObjectURL(url)
   }
 
-  const COLUMNS: [SortKey, string][] = [
+  const COLUMNS: [SortKey | '_contactName' | '_contactEmail', string][] = [
     ['name', 'Name'],
     ['type', 'Type'],
+    ['_contactName', 'Contact Name'],
+    ['_contactEmail', 'Contact Email'],
     ['region', 'Region'],
     ['priority', 'Priority'],
     ['owner', 'Owner'],
@@ -336,6 +354,7 @@ export default function SchoolsPage() {
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((a) => {
                   const overdue = a.nextFollowUpDate && a.nextFollowUpDate < today()
+                  const pc = primaryContactMap[a.id]
                   const cells = [
                     <EditableCell value={a.name} onSave={(v) => saveField(a, 'name', v)}>
                       <span className="font-medium text-gray-900">{a.name}</span>
@@ -343,6 +362,12 @@ export default function SchoolsPage() {
                     <EditableCell value={a.type} fieldType="select" options={SCHOOL_TYPES} onSave={(v) => saveField(a, 'type', v)}>
                       <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{a.type}</span>
                     </EditableCell>,
+                    <span className="text-gray-600">{pc?.name || '—'}</span>,
+                    pc?.email ? (
+                      <a href={`mailto:${pc.email}`} className="text-indigo-600 hover:underline">{pc.email}</a>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    ),
                     <EditableCell value={a.region} fieldType="select" options={REGIONS} onSave={(v) => saveField(a, 'region', v)}>
                       <span className="text-gray-600">{a.region || '—'}</span>
                     </EditableCell>,
