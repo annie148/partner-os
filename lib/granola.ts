@@ -1,10 +1,10 @@
 const GRANOLA_API_BASE = 'https://public-api.granola.ai'
 
-interface GranolaNoteListItem {
-  id: string
-  title: string
-  created_at: string
-  updated_at: string
+interface TranscriptSegment {
+  text: string
+  start_time?: string
+  end_time?: string
+  speaker?: { source?: string }
 }
 
 export interface GranolaNote {
@@ -12,9 +12,21 @@ export interface GranolaNote {
   title: string
   created_at: string
   updated_at: string
-  transcript?: string
-  summary?: string
+  transcript?: TranscriptSegment[]
+  summary_text?: string
+  summary_markdown?: string
   attendees?: { name?: string; email?: string }[]
+}
+
+/** Flatten a note into a single content string for AI parsing */
+export function getNoteContent(note: GranolaNote): string {
+  // Prefer summary
+  if (note.summary_text?.trim()) return note.summary_text
+  // Fall back to transcript joined as text
+  if (Array.isArray(note.transcript) && note.transcript.length > 0) {
+    return note.transcript.map((s) => s.text).join(' ')
+  }
+  return ''
 }
 
 function getApiKey(): string {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRows, appendRow, updateRow } from '@/lib/sheets'
-import { fetchRecentNotes } from '@/lib/granola'
+import { fetchRecentNotes, getNoteContent } from '@/lib/granola'
 import { parseMeetingNote } from '@/lib/ai-parse'
 import type { Account } from '@/types'
 
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
       if (processedIds.has(note.id)) continue
 
       // 4. Parse with AI
-      const content = note.summary || note.transcript || ''
+      const content = getNoteContent(note)
       if (!content.trim()) continue
 
       const parsed = await parseMeetingNote(note.title, content, accountNames)
