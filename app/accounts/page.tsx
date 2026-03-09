@@ -200,21 +200,9 @@ export default function AccountsPage() {
     return map
   }, [contacts])
 
-  const primaryContactMap = useMemo(() => {
-    const map: Record<string, Contact> = {}
-    for (const c of contacts) {
-      if (c.accountId && !map[c.accountId]) {
-        map[c.accountId] = c
-      }
-    }
-    return map
-  }, [contacts])
-
-  const COLUMNS: [SortKey | '_contactName' | '_contactEmail', string][] = [
+  const COLUMNS: [SortKey, string][] = [
     ['name', 'Name'],
     ['type', 'Type'],
-    ['_contactName', 'Contact Name'],
-    ['_contactEmail', 'Contact Email'],
     ['region', 'Region'],
     ['priority', 'Priority'],
     ['owner', 'Owner'],
@@ -225,14 +213,12 @@ export default function AccountsPage() {
 
   const { widths, onMouseDown } = useColumnResize(COLUMNS.length, 140)
 
-  function toggleSort(key: string) {
-    if (key.startsWith('_')) return
-    const k = key as SortKey
-    if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortKey(k); setSortDir('asc') }
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir('asc') }
   }
 
-  function SortIcon({ col }: { col: string }) {
+  function SortIcon({ col }: { col: SortKey }) {
     if (sortKey !== col) return <ChevronUp size={12} className="text-gray-300" />
     return sortDir === 'asc' ? (
       <ChevronUp size={12} className="text-indigo-500" />
@@ -465,7 +451,6 @@ export default function AccountsPage() {
                 {filtered.map((a) => {
                   const overdue = a.nextFollowUpDate && a.nextFollowUpDate < today()
                   const contactCount = contactCountMap[a.id] || 0
-                  const pc = primaryContactMap[a.id]
                   const cells = [
                     <EditableCell value={a.name} onSave={(v) => saveField(a, 'name', v)}>
                       <Link href={`/accounts/${a.id}`} className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline">{a.name}</Link>
@@ -473,12 +458,6 @@ export default function AccountsPage() {
                     <EditableCell value={a.type} fieldType="select" options={ACCOUNT_TYPES} onSave={(v) => saveField(a, 'type', v)}>
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${typeColor(a.type)}`}>{a.type}</span>
                     </EditableCell>,
-                    <span className="text-gray-600">{pc?.name || '—'}</span>,
-                    pc?.email ? (
-                      <a href={`mailto:${pc.email}`} className="text-indigo-600 hover:underline">{pc.email}</a>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    ),
                     <EditableCell value={a.region} fieldType="select" options={REGIONS} onSave={(v) => saveField(a, 'region', v)}>
                       <span className="text-gray-600">{a.region || '—'}</span>
                     </EditableCell>,
