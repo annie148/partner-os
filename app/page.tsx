@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { Account, Task } from '@/types'
-import { AlertCircle, Clock, CalendarDays, Users } from 'lucide-react'
+import { AlertCircle, Clock, CalendarDays, Users, RefreshCw } from 'lucide-react'
 
 function today() {
   return new Date().toISOString().split('T')[0]
@@ -47,6 +47,8 @@ export default function Dashboard() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -93,9 +95,53 @@ export default function Dashboard() {
     )
   }
 
+  async function handleGranolaSync() {
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch('/api/granola-sync', {
+        method: 'POST',
+        headers: { 'x-manual-trigger': 'true' },
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSyncResult(`Synced ${data.synced} notes, ${data.skipped} skipped`)
+        // Reload dashboard data
+        Promise.all([
+          fetch('/api/accounts').then((r) => r.json()),
+          fetch('/api/tasks').then((r) => r.json()),
+        ]).then(([accs, tsks]) => {
+          setAccounts(Array.isArray(accs) ? accs : [])
+          setTasks(Array.isArray(tsks) ? tsks : [])
+        })
+      } else {
+        setSyncResult(`Error: ${data.error}`)
+      }
+    } catch (e) {
+      setSyncResult(`Failed: ${String(e)}`)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <div className="p-8 max-w-7xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Dashboard</h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <button
+          onClick={handleGranolaSync}
+          disabled={syncing}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 disabled:opacity-50"
+        >
+          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing...' : 'Sync Granola'}
+        </button>
+      </div>
+      {syncResult && (
+        <p className={`text-xs mb-2 ${syncResult.startsWith('Error') || syncResult.startsWith('Failed') ? 'text-red-500' : 'text-green-600'}`}>
+          {syncResult}
+        </p>
+      )}
       <p className="text-sm text-gray-500 mb-8">
         {new Date().toLocaleDateString('en-US', {
           weekday: 'long',
