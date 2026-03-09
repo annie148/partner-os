@@ -1,4 +1,4 @@
-const GRANOLA_API_BASE = 'https://api.granola.ai'
+const GRANOLA_API_BASE = 'https://public-api.granola.ai'
 
 interface GranolaNoteListItem {
   id: string
@@ -29,15 +29,15 @@ export async function fetchRecentNotes(hoursAgo = 24): Promise<GranolaNote[]> {
   const notes: GranolaNote[] = []
   let cursor: string | undefined
 
-  // Paginate through all recent notes
+  // Paginate through all recent notes (list endpoint, no include=transcript)
   do {
     const params = new URLSearchParams({
       created_after: since,
-      include: 'transcript',
+      page_size: '30',
     })
     if (cursor) params.set('cursor', cursor)
 
-    const res = await fetch(`${GRANOLA_API_BASE}/v0/notes?${params}`, {
+    const res = await fetch(`${GRANOLA_API_BASE}/v1/notes?${params}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     })
 
@@ -47,18 +47,30 @@ export async function fetchRecentNotes(hoursAgo = 24): Promise<GranolaNote[]> {
     }
 
     const data = await res.json()
-    const items: GranolaNote[] = data.notes || data.results || data.data || []
+    const items: GranolaNote[] = data.notes || []
     notes.push(...items)
-    cursor = data.cursor || data.next_cursor
+    cursor = data.hasMore ? data.cursor : undefined
   } while (cursor)
 
-  return notes
+  // Fetch full details (with transcript) for each note
+  const detailed: GranolaNote[] = []
+  for (const note of notes) {
+    try {
+      const full = await fetchNoteById(note.id)
+      detailed.push(full)
+    } catch {
+      // If detail fetch fails, use the summary from list
+      detailed.push(note)
+    }
+  }
+
+  return detailed
 }
 
 export async function fetchNoteById(noteId: string): Promise<GranolaNote> {
   const apiKey = getApiKey()
   const res = await fetch(
-    `${GRANOLA_API_BASE}/v0/notes/${noteId}?include=transcript`,
+    `${GRANOLA_API_BASE}/v1/notes/${noteId}?include=transcript`,
     { headers: { Authorization: `Bearer ${apiKey}` } }
   )
   if (!res.ok) {
