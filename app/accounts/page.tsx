@@ -5,6 +5,8 @@ import Modal from '@/components/Modal'
 import EditableCell from '@/components/EditableCell'
 import { useColumnResize } from '@/hooks/useColumnResize'
 import type { Account, AccountType, Priority, Owner } from '@/types'
+import Link from 'next/link'
+import type { Contact } from '@/types'
 import {
   Plus,
   Download,
@@ -117,6 +119,7 @@ function parsePaste(text: string): Partial<Account>[] {
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([])
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -145,10 +148,13 @@ export default function AccountsPage() {
 
   function load() {
     setLoading(true)
-    fetch('/api/accounts')
-      .then((r) => r.json())
-      .then((data) => {
-        setAccounts(Array.isArray(data) ? data : [])
+    Promise.all([
+      fetch('/api/accounts').then((r) => r.json()),
+      fetch('/api/contacts').then((r) => r.json()),
+    ])
+      .then(([accountData, contactData]) => {
+        setAccounts(Array.isArray(accountData) ? accountData : [])
+        setContacts(Array.isArray(contactData) ? contactData : [])
         setLoading(false)
       })
       .catch(() => {
@@ -183,6 +189,16 @@ export default function AccountsPage() {
     })
     return list
   }, [accounts, search, filterType, filterPriority, filterOwner, filterRegion, sortKey, sortDir])
+
+  const contactCountMap = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const c of contacts) {
+      if (c.accountId) {
+        map[c.accountId] = (map[c.accountId] || 0) + 1
+      }
+    }
+    return map
+  }, [contacts])
 
   const COLUMNS: [SortKey, string][] = [
     ['name', 'Name'],
@@ -425,15 +441,19 @@ export default function AccountsPage() {
                       />
                     </th>
                   ))}
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style={{ width: 80, minWidth: 80 }}>
+                    Contacts
+                  </th>
                   <th className="px-4 py-3 w-16" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((a) => {
                   const overdue = a.nextFollowUpDate && a.nextFollowUpDate < today()
+                  const contactCount = contactCountMap[a.id] || 0
                   const cells = [
                     <EditableCell value={a.name} onSave={(v) => saveField(a, 'name', v)}>
-                      <span className="font-medium text-gray-900">{a.name}</span>
+                      <Link href={`/accounts/${a.id}`} className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline">{a.name}</Link>
                     </EditableCell>,
                     <EditableCell value={a.type} fieldType="select" options={ACCOUNT_TYPES} onSave={(v) => saveField(a, 'type', v)}>
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${typeColor(a.type)}`}>{a.type}</span>
@@ -470,6 +490,15 @@ export default function AccountsPage() {
                           {cell}
                         </td>
                       ))}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Link href={`/accounts/${a.id}`} className="text-gray-600 hover:text-indigo-600">
+                          {contactCount > 0 ? (
+                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium">{contactCount}</span>
+                          ) : (
+                            <span className="text-gray-300">0</span>
+                          )}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => openEdit(a)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"><Pencil size={13} /></button>

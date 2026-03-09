@@ -3,7 +3,8 @@
 import { useEffect, useState, useMemo } from 'react'
 import Modal from '@/components/Modal'
 import type { Contact, Account } from '@/types'
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Search, Pencil, Trash2, Link2, UserPlus } from 'lucide-react'
 
 const EMPTY: Omit<Contact, 'id'> = {
   accountId: '',
@@ -30,6 +31,10 @@ export default function ContactsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const [linking, setLinking] = useState(false)
+  const [linkResult, setLinkResult] = useState<string | null>(null)
+  const [seeding, setSeeding] = useState(false)
 
   function load() {
     setLoading(true)
@@ -111,6 +116,44 @@ export default function ContactsPage() {
     load()
   }
 
+  async function handleSeedFromAccounts() {
+    setSeeding(true)
+    setLinkResult(null)
+    try {
+      const res = await fetch('/api/contacts/seed-from-accounts', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setLinkResult(`Created ${data.created} contacts from account principals. ${data.skipped} already existed.`)
+        load()
+      } else {
+        setLinkResult(`Error: ${data.error}`)
+      }
+    } catch (e) {
+      setLinkResult(`Failed: ${String(e)}`)
+    } finally {
+      setSeeding(false)
+    }
+  }
+
+  async function handleAutoLink() {
+    setLinking(true)
+    setLinkResult(null)
+    try {
+      const res = await fetch('/api/contacts/auto-link', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setLinkResult(`${data.linked} linked, ${data.alreadyLinked} already linked, ${data.unmatched} unmatched`)
+        load()
+      } else {
+        setLinkResult(`Error: ${data.error}`)
+      }
+    } catch (e) {
+      setLinkResult(`Failed: ${String(e)}`)
+    } finally {
+      setLinking(false)
+    }
+  }
+
   const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
@@ -127,13 +170,37 @@ export default function ContactsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
           <p className="text-sm text-gray-500 mt-0.5">{contacts.length} total</p>
         </div>
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-        >
-          <Plus size={14} /> Add Contact
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSeedFromAccounts}
+            disabled={seeding}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 disabled:opacity-50"
+          >
+            <UserPlus size={14} />
+            {seeding ? 'Creating…' : 'Seed from Accounts'}
+          </button>
+          <button
+            onClick={handleAutoLink}
+            disabled={linking}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 disabled:opacity-50"
+          >
+            <Link2 size={14} />
+            {linking ? 'Linking…' : 'Auto-link to Accounts'}
+          </button>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            <Plus size={14} /> Add Contact
+          </button>
+        </div>
       </div>
+
+      {linkResult && (
+        <p className={`text-xs mb-2 ${linkResult.startsWith('Error') || linkResult.startsWith('Failed') ? 'text-red-500' : 'text-green-600'}`}>
+          {linkResult}
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-4">
         <div className="relative">
@@ -183,7 +250,13 @@ export default function ContactsPage() {
                 {filtered.map((c) => (
                   <tr key={c.id} className="hover:bg-gray-50 group">
                     <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{c.name}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.accountName || '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {c.accountId ? (
+                        <Link href={`/accounts/${c.accountId}`} className="text-indigo-600 hover:underline">{c.accountName}</Link>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.role || '—'}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                       {c.email ? (

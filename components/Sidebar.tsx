@@ -28,7 +28,7 @@ export default function Sidebar() {
       </div>
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {nav.map(({ href, label, icon: Icon }) => {
-          const active = href === '/accounts' ? pathname === href : pathname === href
+          const active = href === '/accounts' ? pathname.startsWith('/accounts') : pathname === href
           return (
             <div key={href}>
               <Link
