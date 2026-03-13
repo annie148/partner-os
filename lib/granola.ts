@@ -87,12 +87,16 @@ export async function fetchRecentNotes(hoursAgo = 24): Promise<GranolaNote[]> {
 export async function fetchNoteById(noteId: string): Promise<GranolaNote> {
   const apiKey = getApiKey()
   const res = await fetch(
-    `${GRANOLA_API_BASE}/v1/notes/${noteId}?include=transcript,notes`,
+    `${GRANOLA_API_BASE}/v1/notes/${noteId}`,
     { headers: { Authorization: `Bearer ${apiKey}` } }
   )
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Granola API error ${res.status}: ${text}`)
   }
-  return res.json()
+  const data = await res.json()
+  // Log all top-level keys to discover the actual field names
+  console.log(`[granola] Note "${noteId}" keys:`, Object.keys(data))
+  console.log(`[granola] Note "${noteId}" sample:`, JSON.stringify(data).slice(0, 500))
+  return data
 }

@@ -106,8 +106,8 @@ export default function Dashboard() {
       const data = await res.json()
       if (res.ok) {
         const details = (data.results || [])
-          .map((r: { title: string; status: string; matched: string | null; tasks: number }) =>
-            `• ${r.title}: ${r.status}${r.matched ? ` → ${r.matched}` : ''}${r.tasks ? ` (${r.tasks} tasks)` : ''}`
+          .map((r: { title: string; status: string; matched: string | null; tasks: number; rawKeys?: string[] }) =>
+            `• ${r.title}: ${r.status}${r.matched ? ` → ${r.matched}` : ''}${r.tasks ? ` (${r.tasks} tasks)` : ''}${r.rawKeys ? ` [keys: ${r.rawKeys.join(', ')}]` : ''}`
           )
           .join('\n')
         setSyncResult(

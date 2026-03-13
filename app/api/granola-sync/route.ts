@@ -191,6 +191,7 @@ export async function POST(req: NextRequest) {
       summary: string
       contentFields: Record<string, boolean>
       contentLength: number
+      rawKeys?: string[]
     }[] = []
 
     for (const note of notes) {
@@ -211,6 +212,7 @@ export async function POST(req: NextRequest) {
 
       // 4. Parse with AI
       const content = getNoteContent(note)
+      const rawKeys = Object.keys(note)
       const contentFields = {
         has_notes: !!note.notes,
         has_notes_markdown: !!note.notes_markdown,
@@ -229,6 +231,7 @@ export async function POST(req: NextRequest) {
           summary: '',
           contentFields,
           contentLength: 0,
+          rawKeys,
         })
         continue
       }
