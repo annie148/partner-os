@@ -2,7 +2,58 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getRows, appendRow, updateRow } from '@/lib/sheets'
 import { fetchRecentNotes, getNoteContent } from '@/lib/granola'
 import { parseMeetingNote } from '@/lib/ai-parse'
-import type { Account } from '@/types'
+import type { Account, Contact } from '@/types'
+
+function rowToContact(row: string[]): Contact {
+  return {
+    id: row[0] || '',
+    accountId: row[1] || '',
+    accountName: row[2] || '',
+    name: row[3] || '',
+    email: row[4] || '',
+    phone: row[5] || '',
+    role: row[6] || '',
+    notes: row[7] || '',
+  }
+}
+
+/** Match a meeting to an account via linked contacts — check attendees and meeting title/content */
+function matchViaContacts(
+  note: { title: string; attendees?: { name?: string; email?: string }[] },
+  content: string,
+  contacts: Contact[],
+  accounts: Account[]
+): Account | null {
+  // Only consider contacts that are linked to an account
+  const linkedContacts = contacts.filter((c) => c.accountId)
+
+  for (const contact of linkedContacts) {
+    const contactName = contact.name.toLowerCase().trim()
+    if (!contactName) continue
+
+    // Check attendees
+    const attendeeMatch = note.attendees?.some((a) => {
+      if (a.email && contact.email && a.email.toLowerCase() === contact.email.toLowerCase()) return true
+      if (a.name && a.name.toLowerCase().trim() === contactName) return true
+      // Partial name match (first + last)
+      if (a.name) {
+        const aName = a.name.toLowerCase().trim()
+        return aName.includes(contactName) || contactName.includes(aName)
+      }
+      return false
+    })
+
+    // Check meeting title and content for contact name
+    const titleMatch = note.title.toLowerCase().includes(contactName)
+    const contentMatch = content.toLowerCase().includes(contactName)
+
+    if (attendeeMatch || titleMatch || contentMatch) {
+      const account = accounts.find((a) => a.id === contact.accountId)
+      if (account) return account
+    }
+  }
+  return null
+}
 
 // Fuzzy match: find the best matching account name
 function findBestMatch(
@@ -114,7 +165,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Fetch recent Granola notes
-    const notes = await fetchRecentNotes(24)
+    const notes = await fetchRecentNotes(168)
     if (notes.length === 0) {
       return NextResponse.json({ message: 'No recent notes found', synced: 0 })
     }
@@ -122,26 +173,72 @@ export async function POST(req: NextRequest) {
     // 2. Get already-processed note IDs
     const processedIds = await getProcessedNoteIds()
 
-    // 3. Get existing accounts for matching
+    // 3. Get existing accounts and contacts for matching
     const accountRows = await getRows('Accounts')
     const accounts = accountRows.filter((r) => r[0]).map(rowToAccount)
     const accountNames = accounts.map((a) => a.name)
 
+    const contactRows = await getRows('Contacts')
+    const allContacts = contactRows.filter((r) => r[0]).map(rowToContact)
+
     let syncedCount = 0
-    const results: { noteId: string; title: string; matched: string | null; tasks: number }[] = []
+    const results: {
+      noteId: string
+      title: string
+      status: string
+      matched: string | null
+      tasks: number
+      summary: string
+      contentFields: Record<string, boolean>
+      contentLength: number
+    }[] = []
 
     for (const note of notes) {
       // Skip already processed
-      if (processedIds.has(note.id)) continue
+      if (processedIds.has(note.id)) {
+        results.push({
+          noteId: note.id,
+          title: note.title,
+          status: 'skipped-already-processed',
+          matched: null,
+          tasks: 0,
+          summary: '',
+          contentFields: {},
+          contentLength: 0,
+        })
+        continue
+      }
 
       // 4. Parse with AI
       const content = getNoteContent(note)
-      if (!content.trim()) continue
+      const contentFields = {
+        has_notes: !!note.notes,
+        has_notes_markdown: !!note.notes_markdown,
+        has_summary_markdown: !!note.summary_markdown,
+        has_summary_text: !!note.summary_text,
+        has_transcript: Array.isArray(note.transcript) && note.transcript.length > 0,
+      }
+
+      if (!content.trim()) {
+        results.push({
+          noteId: note.id,
+          title: note.title,
+          status: 'skipped-no-content',
+          matched: null,
+          tasks: 0,
+          summary: '',
+          contentFields,
+          contentLength: 0,
+        })
+        continue
+      }
 
       const parsed = await parseMeetingNote(note.title, content, accountNames)
 
-      // 5. Match to account
-      const matchedAccount = findBestMatch(parsed.organization, accounts)
+      // 5. Match to account — first by org name, then by linked contacts
+      const matchedAccount =
+        findBestMatch(parsed.organization, accounts) ||
+        matchViaContacts(note, content, allContacts, accounts)
 
       const today = new Date().toISOString().split('T')[0]
 
@@ -155,7 +252,8 @@ export async function POST(req: NextRequest) {
             ? `${existingNotes}\n${summaryLine}`
             : summaryLine
 
-          const updatedRow = [...accountRows[idx]]
+          // Pad row to at least 26 columns (A-Z) so sparse rows don't lose data
+          const updatedRow = Array.from({ length: 26 }, (_, i) => accountRows[idx][i] || '')
           updatedRow[6] = today // lastContactDate
           updatedRow[9] = updatedNotes // notes
           await updateRow('Accounts', idx, updatedRow)
@@ -190,16 +288,27 @@ export async function POST(req: NextRequest) {
       results.push({
         noteId: note.id,
         title: note.title,
+        status: matchedAccount ? 'synced' : 'no-account-match',
         matched: matchedAccount?.name || null,
         tasks: parsed.actionItems.length,
+        summary: parsed.summary,
+        contentFields,
+        contentLength: content.length,
       })
       syncedCount++
     }
 
+    const alreadyProcessed = results.filter((r) => r.status === 'skipped-already-processed').length
+    const noContent = results.filter((r) => r.status === 'skipped-no-content').length
+    const noMatch = results.filter((r) => r.status === 'no-account-match').length
+
     return NextResponse.json({
       message: `Synced ${syncedCount} notes`,
       synced: syncedCount,
-      skipped: notes.length - syncedCount,
+      skipped: alreadyProcessed,
+      noContent,
+      noMatch,
+      totalNotes: notes.length,
       results,
     })
   } catch (e) {

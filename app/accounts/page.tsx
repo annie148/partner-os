@@ -136,6 +136,7 @@ export default function AccountsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Account | null>(null)
   const [form, setForm] = useState<Omit<Account, 'id'>>(EMPTY)
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
   const [showImport, setShowImport] = useState(false)
@@ -227,9 +228,16 @@ export default function AccountsPage() {
     )
   }
 
+  // Contacts not linked to any account (available to attach)
+  const unlinkedContacts = useMemo(
+    () => contacts.filter((c) => !c.accountId),
+    [contacts]
+  )
+
   function openAdd() {
     setEditing(null)
     setForm(EMPTY)
+    setSelectedContactIds([])
     setShowForm(true)
   }
 
@@ -247,6 +255,8 @@ export default function AccountsPage() {
     setEditing(a)
     const { id, ...rest } = a
     setForm(rest)
+    // Pre-select contacts already linked to this account
+    setSelectedContactIds(contacts.filter((c) => c.accountId === a.id).map((c) => c.id))
     setShowForm(true)
   }
 
@@ -254,19 +264,66 @@ export default function AccountsPage() {
     if (!form.name.trim()) return
     setSaving(true)
     try {
+      let accountId: string
+      let accountName: string
+
       if (editing) {
+        accountId = editing.id
+        accountName = form.name
         await fetch(`/api/accounts/${editing.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...form, id: editing.id }),
         })
       } else {
-        await fetch('/api/accounts', {
+        const res = await fetch('/api/accounts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
         })
+        const data = await res.json()
+        accountId = data.id || ''
+        accountName = form.name
       }
+
+      // Link selected contacts to this account
+      if (accountId && selectedContactIds.length > 0) {
+        await Promise.all(
+          selectedContactIds.map((contactId) => {
+            const contact = contacts.find((c) => c.id === contactId)
+            if (!contact) return Promise.resolve()
+            return fetch(`/api/contacts/${contactId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...contact,
+                accountId,
+                accountName,
+              }),
+            })
+          })
+        )
+      }
+
+      // Unlink contacts that were removed (when editing)
+      if (editing) {
+        const previouslyLinked = contacts.filter((c) => c.accountId === editing.id)
+        const unlinked = previouslyLinked.filter((c) => !selectedContactIds.includes(c.id))
+        await Promise.all(
+          unlinked.map((contact) =>
+            fetch(`/api/contacts/${contact.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...contact,
+                accountId: '',
+                accountName: '',
+              }),
+            })
+          )
+        )
+      }
+
       setShowForm(false)
       load()
     } finally {
@@ -569,6 +626,41 @@ export default function AccountsPage() {
           <div className="col-span-2">
             <Field label="Notes">
               <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={`${input} resize-none`} rows={3} placeholder="Additional notes…" />
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="Attach Contacts">
+              {(() => {
+                // Show contacts available to attach: unlinked + already linked to this account
+                const available = editing
+                  ? contacts.filter((c) => !c.accountId || c.accountId === editing.id)
+                  : unlinkedContacts
+                return available.length === 0 ? (
+                  <p className="text-sm text-gray-400">No unlinked contacts available.</p>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto">
+                    {available.map((c) => (
+                      <label key={c.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedContactIds.includes(c.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedContactIds([...selectedContactIds, c.id])
+                            } else {
+                              setSelectedContactIds(selectedContactIds.filter((id) => id !== c.id))
+                            }
+                          }}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-gray-900">{c.name}</span>
+                        {c.role && <span className="text-gray-400 text-xs">({c.role})</span>}
+                        {c.email && <span className="text-gray-400 text-xs">{c.email}</span>}
+                      </label>
+                    ))}
+                  </div>
+                )
+              })()}
             </Field>
           </div>
         </div>

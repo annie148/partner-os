@@ -15,12 +15,17 @@ export interface GranolaNote {
   transcript?: TranscriptSegment[]
   summary_text?: string
   summary_markdown?: string
+  notes?: string
+  notes_markdown?: string
   attendees?: { name?: string; email?: string }[]
 }
 
 /** Flatten a note into a single content string for AI parsing */
 export function getNoteContent(note: GranolaNote): string {
-  // Prefer summary
+  // Prefer markdown content (preserves action items and structured sections)
+  const markdown = note.notes_markdown || note.notes || note.summary_markdown
+  if (markdown?.trim()) return markdown
+  // Fall back to plain text summary
   if (note.summary_text?.trim()) return note.summary_text
   // Fall back to transcript joined as text
   if (Array.isArray(note.transcript) && note.transcript.length > 0) {
@@ -82,7 +87,7 @@ export async function fetchRecentNotes(hoursAgo = 24): Promise<GranolaNote[]> {
 export async function fetchNoteById(noteId: string): Promise<GranolaNote> {
   const apiKey = getApiKey()
   const res = await fetch(
-    `${GRANOLA_API_BASE}/v1/notes/${noteId}?include=transcript`,
+    `${GRANOLA_API_BASE}/v1/notes/${noteId}?include=transcript,notes`,
     { headers: { Authorization: `Bearer ${apiKey}` } }
   )
   if (!res.ok) {

@@ -105,7 +105,15 @@ export default function Dashboard() {
       })
       const data = await res.json()
       if (res.ok) {
-        setSyncResult(`Synced ${data.synced} notes, ${data.skipped} skipped`)
+        const details = (data.results || [])
+          .map((r: { title: string; status: string; matched: string | null; tasks: number }) =>
+            `• ${r.title}: ${r.status}${r.matched ? ` → ${r.matched}` : ''}${r.tasks ? ` (${r.tasks} tasks)` : ''}`
+          )
+          .join('\n')
+        setSyncResult(
+          `${data.totalNotes} notes found | ${data.synced} synced | ${data.skipped} already processed | ${data.noContent || 0} no content | ${data.noMatch || 0} no match` +
+          (details ? '\n' + details : '')
+        )
         // Reload dashboard data
         Promise.all([
           fetch('/api/accounts').then((r) => r.json()),
@@ -138,9 +146,9 @@ export default function Dashboard() {
         </button>
       </div>
       {syncResult && (
-        <p className={`text-xs mb-2 ${syncResult.startsWith('Error') || syncResult.startsWith('Failed') ? 'text-red-500' : 'text-green-600'}`}>
+        <pre className={`text-xs mb-2 whitespace-pre-wrap font-sans ${syncResult.startsWith('Error') || syncResult.startsWith('Failed') ? 'text-red-500' : 'text-green-600'}`}>
           {syncResult}
-        </p>
+        </pre>
       )}
       <p className="text-sm text-gray-500 mb-8">
         {new Date().toLocaleDateString('en-US', {

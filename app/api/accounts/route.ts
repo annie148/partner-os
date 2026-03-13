@@ -79,11 +79,13 @@ export async function POST(req: NextRequest) {
   try {
     const body: Omit<Account, 'id'> | Omit<Account, 'id'>[] = await req.json()
     const items = Array.isArray(body) ? body : [body]
+    const ids: string[] = []
     for (const item of items) {
       const id = crypto.randomUUID()
+      ids.push(id)
       await appendRow('Accounts', accountToRow(item, id))
     }
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, id: ids[0], ids })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: String(e) }, { status: 500 })
