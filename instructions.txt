@@ -1,0 +1,9 @@
+Accounts:
+
+I need more detail in the accounts section. I would like it split into two subgroups under “Accounts.”
+
+The groups need to be: funders and schools/districts.
+
+For the funders, we need the following: ask status, target, committed amount.
+
+For the schools/districts, we need: goal, principal, type of engagement (high level, medium level, low level), Partner Dashboard link, partner enrollment toolkit, Google Drive file, midpoint date, BOY data, MOY data, EOY data, assessment name, math curriculum, ela curriculum.

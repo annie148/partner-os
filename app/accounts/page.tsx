@@ -4,7 +4,9 @@ import { useEffect, useState, useMemo } from 'react'
 import Modal from '@/components/Modal'
 import EditableCell from '@/components/EditableCell'
 import { useColumnResize } from '@/hooks/useColumnResize'
-import type { Account, AccountType, Priority, Owner } from '@/types'
+import { useColumnVisibility } from '@/hooks/useColumnVisibility'
+import ColumnToggle from '@/components/ColumnToggle'
+import type { Account, AccountType, AccountLevel, Priority, Owner } from '@/types'
 import Link from 'next/link'
 import type { Contact } from '@/types'
 import {
@@ -23,14 +25,18 @@ const ACCOUNT_TYPES: AccountType[] = [
   'Current Funder',
   'Former Funder',
   'Declined Funder',
-  'Prospective School/District',
-  'Current School/District',
-  'Former School/District',
-  'Declined School/District',
+  'Prospective',
+  'Current Partner',
+  'Indirect Partner',
+  'Declined Partner',
+  'Past Partner',
+  'Other - Education',
+  'Other - Funder',
 ]
 const PRIORITIES: Priority[] = ['High', 'Medium', 'Low']
-const OWNERS: Owner[] = ['Annie', 'Sam', 'Gab']
-const REGIONS = ['Bay Area', 'DC', 'LA', 'National', 'NY']
+const OWNERS: Owner[] = ['Annie', 'Genesis', 'Sam', 'Gab', 'Krissy']
+const ACCOUNT_LEVELS: AccountLevel[] = ['School', 'District', 'CMO']
+// Regions loaded dynamically
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   High: 'bg-red-100 text-red-700',
@@ -43,8 +49,15 @@ const TYPE_COLORS: Record<string, string> = {
   'School/District': 'bg-purple-100 text-purple-700',
 }
 
+const LEVEL_COLORS: Record<string, string> = {
+  District: 'bg-blue-100 text-blue-700',
+  CMO: 'bg-orange-100 text-orange-700',
+  School: 'bg-gray-100 text-gray-600',
+}
+
 function typeColor(type: string) {
   if (type.includes('Funder')) return TYPE_COLORS['Funder']
+  if (type.includes('Education')) return 'bg-teal-100 text-teal-700'
   return TYPE_COLORS['School/District']
 }
 
@@ -56,6 +69,15 @@ function formatDate(d: string) {
 
 function today() {
   return new Date().toISOString().split('T')[0]
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      {children}
+    </div>
+  )
 }
 
 const EMPTY: Omit<Account, 'id'> = {
@@ -84,6 +106,20 @@ const EMPTY: Omit<Account, 'id'> = {
   assessmentName: '',
   mathCurriculum: '',
   elaCurriculum: '',
+  granolaNotesUrl: '',
+  obcStatus: '',
+  contractCap: '',
+  dsaStatus: '',
+  district: '',
+  parentDistrictId: '',
+  accountLevel: '',
+  mouStatus: '',
+  dataReceived: '',
+  districtAssessmentMath: '',
+  districtAssessmentReading: '',
+  testWindow: '',
+  matchedStudents: '',
+  assessmentFollowUpNotes: '',
 }
 
 type SortKey = keyof Account
@@ -122,6 +158,7 @@ export default function AccountsPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [regions, setRegions] = useState<string[]>([])
 
   // Filters & sort
   const [search, setSearch] = useState('')
@@ -146,16 +183,19 @@ export default function AccountsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   function load() {
     setLoading(true)
     Promise.all([
       fetch('/api/accounts').then((r) => r.json()),
       fetch('/api/contacts').then((r) => r.json()),
+      fetch('/api/regions').then((r) => r.json()),
     ])
-      .then(([accountData, contactData]) => {
+      .then(([accountData, contactData, regionData]) => {
         setAccounts(Array.isArray(accountData) ? accountData : [])
         setContacts(Array.isArray(contactData) ? contactData : [])
+        setRegions((Array.isArray(regionData) ? regionData : []).map((r: { regionName: string }) => r.regionName).sort())
         setLoading(false)
       })
       .catch(() => {
@@ -165,6 +205,13 @@ export default function AccountsPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
 
   const filtered = useMemo(() => {
     let list = accounts
@@ -204,6 +251,7 @@ export default function AccountsPage() {
   const COLUMNS: [SortKey, string][] = [
     ['name', 'Name'],
     ['type', 'Type'],
+    ['accountLevel', 'Level'],
     ['region', 'Region'],
     ['priority', 'Priority'],
     ['owner', 'Owner'],
@@ -213,6 +261,7 @@ export default function AccountsPage() {
   ]
 
   const { widths, onMouseDown } = useColumnResize(COLUMNS.length, 140)
+  const { hiddenKeys, toggle: toggleColumn, isVisible } = useColumnVisibility('accounts')
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -242,13 +291,20 @@ export default function AccountsPage() {
   }
 
   async function saveField(account: Account, field: keyof Account, value: string) {
+    const prev = accounts
     const updated = { ...account, [field]: value }
-    await fetch(`/api/accounts/${account.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
-    })
-    load()
+    setAccounts((cur) => cur.map((a) => (a.id === account.id ? updated : a)))
+    try {
+      const res = await fetch(`/api/accounts/${account.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      if (!res.ok) throw new Error('Save failed')
+    } catch {
+      setAccounts(prev)
+      setToast('Failed to save — reverted')
+    }
   }
 
   function openEdit(a: Account) {
@@ -373,13 +429,6 @@ export default function AccountsPage() {
     load()
   }
 
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      {children}
-    </div>
-  )
-
   const input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
   const select = input
 
@@ -454,7 +503,7 @@ export default function AccountsPage() {
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <option value="">All Regions</option>
-          {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          {regions.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         {(search || filterType || filterPriority || filterOwner || filterRegion) && (
           <button
@@ -464,6 +513,12 @@ export default function AccountsPage() {
             Clear filters
           </button>
         )}
+        <ColumnToggle
+          columns={COLUMNS.map(([key, label]) => ({ key, label }))}
+          hiddenKeys={hiddenKeys}
+          onToggle={toggleColumn}
+          alwaysVisible={['name']}
+        />
       </div>
 
       {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
@@ -479,13 +534,13 @@ export default function AccountsPage() {
             <table className="text-sm" style={{ minWidth: '100%' }}>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {COLUMNS.map(([key, label], i) => (
+                  {COLUMNS.map(([key, label], i) => isVisible(key) && (
                     <th
                       key={key}
                       onClick={() => toggleSort(key)}
                       style={{ width: widths[i], minWidth: widths[i] }}
                       className={`relative text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none whitespace-nowrap ${
-                        i === 0 ? 'sticky left-0 z-10 bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
+                        key === 'name' ? 'sticky left-0 z-10 bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
                       }`}
                     >
                       <span className="flex items-center gap-1">
@@ -515,7 +570,10 @@ export default function AccountsPage() {
                     <EditableCell value={a.type} fieldType="select" options={ACCOUNT_TYPES} onSave={(v) => saveField(a, 'type', v)}>
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${typeColor(a.type)}`}>{a.type}</span>
                     </EditableCell>,
-                    <EditableCell value={a.region} fieldType="select" options={REGIONS} onSave={(v) => saveField(a, 'region', v)}>
+                    <EditableCell value={a.accountLevel} fieldType="select" options={['', ...ACCOUNT_LEVELS]} onSave={(v) => saveField(a, 'accountLevel', v)}>
+                      {a.accountLevel ? <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${LEVEL_COLORS[a.accountLevel] || ''}`}>{a.accountLevel}</span> : <span className="text-gray-400">—</span>}
+                    </EditableCell>,
+                    <EditableCell value={a.region} fieldType="select" options={regions} onSave={(v) => saveField(a, 'region', v)}>
                       <span className="text-gray-600">{a.region || '—'}</span>
                     </EditableCell>,
                     <EditableCell value={a.priority} fieldType="select" options={PRIORITIES} onSave={(v) => saveField(a, 'priority', v)}>
@@ -536,12 +594,12 @@ export default function AccountsPage() {
                   ]
                   return (
                     <tr key={a.id} className="hover:bg-gray-50 group">
-                      {cells.map((cell, i) => (
+                      {cells.map((cell, i) => isVisible(COLUMNS[i][0]) && (
                         <td
                           key={i}
                           style={{ width: widths[i], minWidth: widths[i], maxWidth: widths[i] }}
                           className={`px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap ${
-                            i === 0 ? 'sticky left-0 z-10 bg-white group-hover:bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
+                            COLUMNS[i][0] === 'name' ? 'sticky left-0 z-10 bg-white group-hover:bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
                           }`}
                         >
                           {cell}
@@ -587,7 +645,6 @@ export default function AccountsPage() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className={input}
                 placeholder="Organization name"
-                autoFocus
               />
             </Field>
           </div>
@@ -596,10 +653,16 @@ export default function AccountsPage() {
               {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </Field>
+          <Field label="Level">
+            <select value={form.accountLevel} onChange={(e) => setForm({ ...form, accountLevel: e.target.value as AccountLevel })} className={select}>
+              <option value="">— None —</option>
+              {ACCOUNT_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </Field>
           <Field label="Region">
             <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className={select}>
               <option value="">— Select region —</option>
-              {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              {regions.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </Field>
           <Field label="Priority">
@@ -626,6 +689,11 @@ export default function AccountsPage() {
           <div className="col-span-2">
             <Field label="Notes">
               <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={`${input} resize-none`} rows={3} placeholder="Additional notes…" />
+            </Field>
+          </div>
+          <div className="col-span-2">
+            <Field label="Granola Notes URL">
+              <input type="url" value={form.granolaNotesUrl} onChange={(e) => setForm({ ...form, granolaNotesUrl: e.target.value })} className={input} placeholder="https://app.granola.so/note/..." />
             </Field>
           </div>
           <div className="col-span-2">
@@ -759,6 +827,12 @@ export default function AccountsPage() {
           </button>
         </div>
       </Modal>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

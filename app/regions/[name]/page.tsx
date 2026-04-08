@@ -8,10 +8,16 @@ import NotesDisplay from '@/components/NotesDisplay'
 import ColumnToggle from '@/components/ColumnToggle'
 import { useColumnVisibility } from '@/hooks/useColumnVisibility'
 import { useColumnResize } from '@/hooks/useColumnResize'
-import type { Region, Account, Task, TaskStatus, Activity } from '@/types'
+import type { Region, Account, Task, TaskStatus, TaskType, Owner, Activity } from '@/types'
 import { SCHOOL_TYPES } from '@/types'
 import ActivityLog from '@/components/ActivityLog'
-import { ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react'
+import Modal from '@/components/Modal'
+import SearchableSelect from '@/components/SearchableSelect'
+import { ArrowLeft, ChevronDown, ChevronRight, Plus } from 'lucide-react'
+
+const OWNERS: Owner[] = ['Annie', 'Genesis', 'Sam', 'Gab', 'Krissy']
+const STATUSES: TaskStatus[] = ['Not Started', 'In Progress', 'Blocked', 'Complete']
+const TASK_TYPES: TaskType[] = ['Follow-up', 'Outreach', 'Internal', 'Other']
 
 const PRIORITY_COLORS: Record<string, string> = {
   High: 'bg-red-100 text-red-700',
@@ -196,6 +202,43 @@ export default function RegionDetailPage() {
       setRegion(prev)
       setToast('Failed to save. Please try again.')
     })
+  }
+
+  // Task form state
+  const [showTaskForm, setShowTaskForm] = useState(false)
+  const [taskForm, setTaskForm] = useState<Omit<Task, 'id'>>({ accountId: '', accountName: '', title: '', assignee: '' as Owner, dueDate: '', status: 'Not Started', notes: '', region: regionName, completedDate: '', type: 'Other' })
+  const [savingTask, setSavingTask] = useState(false)
+
+  function openTaskForm() {
+    setTaskForm({ accountId: '', accountName: '', title: '', assignee: '' as Owner, dueDate: '', status: 'Not Started', notes: '', region: regionName, completedDate: '', type: 'Other' })
+    setShowTaskForm(true)
+  }
+
+  function handleTaskAccountChange(accountId: string) {
+    const acc = accounts.find((a) => a.id === accountId)
+    setTaskForm({ ...taskForm, accountId, accountName: acc?.name || '' })
+  }
+
+  async function handleSaveTask() {
+    if (!taskForm.title.trim()) return
+    setSavingTask(true)
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(taskForm),
+      })
+      if (res.ok) {
+        setShowTaskForm(false)
+        load()
+      } else {
+        setToast('Failed to create task. Please try again.')
+      }
+    } catch {
+      setToast('Failed to create task. Please try again.')
+    } finally {
+      setSavingTask(false)
+    }
   }
 
   const regionAccounts = useMemo(() => accounts.filter((a) => a.region === regionName), [accounts, regionName])
@@ -422,6 +465,9 @@ export default function RegionDetailPage() {
             {taskCollapse.collapsed ? <ChevronRight size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
             <h2 className="font-semibold text-gray-900 text-sm">Open Tasks ({regionTasks.length})</h2>
           </button>
+          <button onClick={openTaskForm} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            <Plus size={12} /> Add Task
+          </button>
         </div>
         {!taskCollapse.collapsed && (
           regionTasks.length === 0 ? (
@@ -441,11 +487,8 @@ export default function RegionDetailPage() {
                       <div className="min-w-0">
                         <Link href={`/tasks/${t.id}`} className="text-sm font-medium text-gray-900 hover:text-indigo-600 hover:underline truncate block">{t.title}</Link>
                         <p className="text-xs text-gray-500">
-                          {t.assignee} · {t.accountName}
-                          {' · '}
-                          <span className={t.source === 'direct' ? 'text-indigo-500' : 'text-gray-400'}>
-                            {t.source}
-                          </span>
+                          {t.assignee}{t.accountName ? ` · ${t.accountName}` : ''}
+                          {t.accountName ? <>{' · '}<span className={t.source === 'direct' ? 'text-indigo-500' : 'text-gray-400'}>{t.source}</span></> : <>{' · '}<span className="text-indigo-500">region task</span></>}
                         </p>
                       </div>
                       <span className={`text-xs font-medium whitespace-nowrap shrink-0 ${overdue ? 'text-red-600' : 'text-gray-500'}`}>
@@ -474,6 +517,66 @@ export default function RegionDetailPage() {
           load()
         }}
       />
+
+      {/* Add Task Modal */}
+      <Modal isOpen={showTaskForm} onClose={() => setShowTaskForm(false)} title="Add Task" size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
+            <textarea value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none" rows={2} placeholder="Task title" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Account (optional)</label>
+            <SearchableSelect
+              value={taskForm.accountId}
+              onChange={handleTaskAccountChange}
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+              placeholder="— No account (region-level task) —"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Region</label>
+            <input value={taskForm.region} readOnly className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Assignee</label>
+              <select value={taskForm.assignee} onChange={(e) => setTaskForm({ ...taskForm, assignee: e.target.value as Owner })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                <option value="">— Unassigned —</option>
+                {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
+              <input type="date" value={taskForm.dueDate} onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+              <select value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value as TaskStatus })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+              <select value={taskForm.type || 'Other'} onChange={(e) => setTaskForm({ ...taskForm, type: e.target.value as TaskType })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                {TASK_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+            <textarea value={taskForm.notes} onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none" rows={3} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-100">
+          <button onClick={() => setShowTaskForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={handleSaveTask} disabled={savingTask || !taskForm.title.trim()} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+            {savingTask ? 'Saving…' : 'Add Task'}
+          </button>
+        </div>
+      </Modal>
 
       {toast && (
         <div className="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">

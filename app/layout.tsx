@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import Sidebar from '@/components/Sidebar'
@@ -15,7 +16,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={`${inter.className} antialiased`}>
         <div className="flex h-screen bg-gray-50">
-          <Sidebar />
+          <Suspense>
+            <Sidebar />
+          </Suspense>
           <main className="flex-1 overflow-auto">{children}</main>
         </div>
       </body>

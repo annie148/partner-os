@@ -49,6 +49,7 @@ export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [task, setTask] = useState<Task | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
+  const [regions, setRegions] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
   function load() {
@@ -56,9 +57,11 @@ export default function TaskDetailPage() {
     Promise.all([
       fetch(`/api/tasks/${id}`).then((r) => r.json()),
       fetch('/api/accounts').then((r) => r.json()),
-    ]).then(([t, a]) => {
+      fetch('/api/regions').then((r) => r.json()),
+    ]).then(([t, a, reg]) => {
       setTask(t.error ? null : t)
       setAccounts(Array.isArray(a) ? a : [])
+      setRegions((Array.isArray(reg) ? reg : []).map((r: { regionName: string }) => r.regionName).sort())
       setLoading(false)
     })
   }
@@ -173,7 +176,7 @@ export default function TaskDetailPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Assignee</p>
           <EditableCell value={task.assignee} fieldType="select" options={OWNERS} onSave={(v) => saveField('assignee', v)}>
@@ -190,13 +193,25 @@ export default function TaskDetailPage() {
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Account</p>
-          <EditableCell value={task.accountName} fieldType="select" options={accounts.map((a) => a.name).sort()} onSave={saveAccount}>
+          <EditableCell value={task.accountName} fieldType="select" options={['', ...accounts.map((a) => a.name).sort()]} onSave={saveAccount}>
             {accountHref ? (
               <Link href={accountHref} onClick={(e) => e.stopPropagation()} className="text-sm font-semibold text-indigo-600 hover:underline mt-1 block">
                 {task.accountName}
               </Link>
             ) : (
               <p className="text-sm font-semibold text-gray-900 mt-1">{task.accountName || '—'}</p>
+            )}
+          </EditableCell>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Region</p>
+          <EditableCell value={task.region} fieldType="select" options={regions} onSave={(v) => saveField('region', v)}>
+            {task.region ? (
+              <Link href={`/regions/${encodeURIComponent(task.region)}`} className="text-sm font-semibold text-indigo-600 hover:underline mt-1 block">
+                {task.region}
+              </Link>
+            ) : (
+              <p className="text-sm font-semibold text-gray-900 mt-1">—</p>
             )}
           </EditableCell>
         </div>

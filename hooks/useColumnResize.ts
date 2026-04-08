@@ -1,35 +1,49 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 
-export function useColumnResize(columnCount: number, defaultWidth = 120) {
+export function useColumnResize(columnCount: number, defaultWidth: number | number[] = 120) {
   const [widths, setWidths] = useState<number[]>(() =>
-    Array(columnCount).fill(defaultWidth)
+    Array.isArray(defaultWidth)
+      ? defaultWidth.slice(0, columnCount)
+      : Array(columnCount).fill(defaultWidth)
   )
   const dragging = useRef<{ index: number; startX: number; startWidth: number } | null>(null)
+  const cleanupRef = useRef<(() => void) | null>(null)
 
   const onMouseDown = useCallback(
     (index: number, e: React.MouseEvent) => {
       e.preventDefault()
+      // Clean up any lingering drag session
+      cleanupRef.current?.()
+
       dragging.current = { index, startX: e.clientX, startWidth: widths[index] }
 
       const onMouseMove = (ev: MouseEvent) => {
-        if (!dragging.current) return
-        const diff = ev.clientX - dragging.current.startX
-        const newWidth = Math.max(60, dragging.current.startWidth + diff)
+        const drag = dragging.current
+        if (!drag) return
+        const diff = ev.clientX - drag.startX
+        const newWidth = Math.max(60, drag.startWidth + diff)
+        const dragIndex = drag.index
         setWidths((prev) => {
           const next = [...prev]
-          next[dragging.current!.index] = newWidth
+          next[dragIndex] = newWidth
           return next
         })
       }
 
-      const onMouseUp = () => {
+      const cleanup = () => {
         dragging.current = null
+        cleanupRef.current = null
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
       }
 
+      const onMouseUp = () => {
+        cleanup()
+      }
+
+      cleanupRef.current = cleanup
       document.body.style.cursor = 'col-resize'
       document.body.style.userSelect = 'none'
       document.addEventListener('mousemove', onMouseMove)
@@ -37,6 +51,11 @@ export function useColumnResize(columnCount: number, defaultWidth = 120) {
     },
     [widths]
   )
+
+  // Clean up listeners on unmount
+  useEffect(() => {
+    return () => { cleanupRef.current?.() }
+  }, [])
 
   // Sync if column count changes
   useEffect(() => {

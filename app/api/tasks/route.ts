@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRows, appendRow } from '@/lib/sheets'
+import { getAssigneeEmail, sendTaskEmail } from '@/lib/gmail'
 import type { Task } from '@/types'
 
 function rowToTask(row: string[]): Task {
@@ -12,6 +13,9 @@ function rowToTask(row: string[]): Task {
     dueDate: row[5] || '',
     status: (row[6] || 'Not Started') as Task['status'],
     notes: row[7] || '',
+    region: row[8] || '',
+    completedDate: row[9] || '',
+    type: (row[10] || 'Other') as Task['type'],
   }
 }
 
@@ -39,8 +43,35 @@ export async function POST(req: NextRequest) {
       body.dueDate,
       body.status,
       body.notes,
+      body.region || '',
+      '',
+      body.type || 'Other',
     ])
-    return NextResponse.json({ ok: true })
+
+    // Send email notification to assignee (manual task creation)
+    let emailStatus = 'no-assignee'
+    if (body.assignee) {
+      const email = getAssigneeEmail(body.assignee)
+      if (email) {
+        try {
+          await sendTaskEmail(email, {
+            taskTitle: body.title,
+            taskNotes: body.notes || '',
+            accountName: body.accountName || '',
+            assignee: body.assignee,
+            dueDate: body.dueDate || '',
+          })
+          emailStatus = `sent to ${email}`
+        } catch (e) {
+          console.error('Failed to send task email:', e)
+          emailStatus = `error: ${String(e)}`
+        }
+      } else {
+        emailStatus = `no-email-for-${body.assignee}`
+      }
+    }
+
+    return NextResponse.json({ ok: true, emailStatus })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: String(e) }, { status: 500 })

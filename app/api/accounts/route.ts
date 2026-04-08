@@ -30,6 +30,20 @@ function rowToAccount(row: string[]): Account {
     assessmentName: row[23] || '',
     mathCurriculum: row[24] || '',
     elaCurriculum: row[25] || '',
+    granolaNotesUrl: row[26] || '',
+    obcStatus: row[27] || '',
+    contractCap: row[28] || '',
+    dsaStatus: row[29] || '',
+    district: row[30] || '',
+    parentDistrictId: row[31] || '',
+    accountLevel: (row[32] || '') as Account['accountLevel'],
+    mouStatus: row[33] || '',
+    dataReceived: row[34] || '',
+    districtAssessmentMath: row[35] || '',
+    districtAssessmentReading: row[36] || '',
+    testWindow: row[37] || '',
+    matchedStudents: row[38] || '',
+    assessmentFollowUpNotes: row[39] || '',
   }
 }
 
@@ -61,6 +75,20 @@ function accountToRow(account: Omit<Account, 'id'>, id: string): string[] {
     account.assessmentName || '',
     account.mathCurriculum || '',
     account.elaCurriculum || '',
+    account.granolaNotesUrl || '',
+    account.obcStatus || '',
+    account.contractCap || '',
+    account.dsaStatus || '',
+    account.district || '',
+    account.parentDistrictId || '',
+    account.accountLevel || '',
+    account.mouStatus || '',
+    account.dataReceived || '',
+    account.districtAssessmentMath || '',
+    account.districtAssessmentReading || '',
+    account.testWindow || '',
+    account.matchedStudents || '',
+    account.assessmentFollowUpNotes || '',
   ]
 }
 

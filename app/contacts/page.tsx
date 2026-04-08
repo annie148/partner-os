@@ -2,9 +2,22 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Modal from '@/components/Modal'
+import SearchableSelect from '@/components/SearchableSelect'
+import { useColumnResize } from '@/hooks/useColumnResize'
+import { useColumnVisibility } from '@/hooks/useColumnVisibility'
+import ColumnToggle from '@/components/ColumnToggle'
 import type { Contact, Account } from '@/types'
 import Link from 'next/link'
 import { Plus, Search, Pencil, Trash2, Link2, UserPlus } from 'lucide-react'
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      {children}
+    </div>
+  )
+}
 
 const EMPTY: Omit<Contact, 'id'> = {
   accountId: '',
@@ -154,14 +167,18 @@ export default function ContactsPage() {
     }
   }
 
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      {children}
-    </div>
-  )
-
   const input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
+
+  const COLUMNS: [string, string][] = [
+    ['name', 'Name'],
+    ['account', 'Account'],
+    ['role', 'Role'],
+    ['email', 'Email'],
+    ['phone', 'Phone'],
+    ['notes', 'Notes'],
+  ]
+  const { widths, onMouseDown } = useColumnResize(COLUMNS.length + 1, 150)
+  const { hiddenKeys, toggle: toggleColumn, isVisible } = useColumnVisibility('contacts')
 
   return (
     <div className="p-8">
@@ -213,19 +230,24 @@ export default function ContactsPage() {
             className="pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-56"
           />
         </div>
-        <select
+        <SearchableSelect
           value={filterAccount}
-          onChange={(e) => setFilterAccount(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="">All Accounts</option>
-          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
+          onChange={setFilterAccount}
+          options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+          placeholder="All Accounts"
+          className="w-56"
+        />
         {(search || filterAccount) && (
           <button onClick={() => { setSearch(''); setFilterAccount('') }} className="text-sm text-gray-400 hover:text-gray-600 px-2">
             Clear filters
           </button>
         )}
+        <ColumnToggle
+          columns={COLUMNS.map(([key, label]) => ({ key, label }))}
+          hiddenKeys={hiddenKeys}
+          onToggle={toggleColumn}
+          alwaysVisible={['name']}
+        />
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -234,38 +256,53 @@ export default function ContactsPage() {
         ) : filtered.length === 0 ? (
           <div className="p-8 text-center text-sm text-gray-400">No contacts found.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
+          <div className="overflow-x-auto max-h-[calc(100vh-280px)]">
+            <table className="text-sm" style={{ minWidth: '100%' }}>
+              <thead className="sticky top-0 z-10">
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {['Name', 'Account', 'Role', 'Email', 'Phone', 'Notes'].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                      {h}
+                  {COLUMNS.map(([key, label], i) => isVisible(key) && (
+                    <th
+                      key={key}
+                      style={{ width: widths[i], minWidth: widths[i] }}
+                      className="relative text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
+                    >
+                      {label}
+                      <div
+                        onMouseDown={(e) => { e.stopPropagation(); onMouseDown(i, e) }}
+                        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/40 z-20"
+                      />
                     </th>
                   ))}
-                  <th className="px-4 py-3 w-16" />
+                  <th
+                    style={{ width: widths[COLUMNS.length], minWidth: widths[COLUMNS.length] }}
+                    className="px-4 py-3 w-16"
+                  />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((c) => (
                   <tr key={c.id} className="hover:bg-gray-50 group">
-                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{c.name}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {c.accountId ? (
-                        <Link href={`/accounts/${c.accountId}`} className="text-indigo-600 hover:underline">{c.accountName}</Link>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.role || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                      {c.email ? (
-                        <a href={`mailto:${c.email}`} className="text-indigo-600 hover:underline">{c.email}</a>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.phone || '—'}</td>
-                    <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{c.notes || '—'}</td>
-                    <td className="px-4 py-3">
+                    {isVisible('name') && <td style={{ width: widths[0], minWidth: widths[0], maxWidth: widths[0] }} className="px-4 py-3 font-medium text-gray-900 overflow-hidden text-ellipsis whitespace-nowrap">{c.name}</td>}
+                    {isVisible('account') && (
+                      <td style={{ width: widths[1], minWidth: widths[1], maxWidth: widths[1] }} className="px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap">
+                        {c.accountId ? (
+                          <Link href={`/accounts/${c.accountId}`} className="text-indigo-600 hover:underline">{c.accountName}</Link>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                    )}
+                    {isVisible('role') && <td style={{ width: widths[2], minWidth: widths[2], maxWidth: widths[2] }} className="px-4 py-3 text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">{c.role || '—'}</td>}
+                    {isVisible('email') && (
+                      <td style={{ width: widths[3], minWidth: widths[3], maxWidth: widths[3] }} className="px-4 py-3 text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">
+                        {c.email ? (
+                          <a href={`mailto:${c.email}`} className="text-indigo-600 hover:underline">{c.email}</a>
+                        ) : '—'}
+                      </td>
+                    )}
+                    {isVisible('phone') && <td style={{ width: widths[4], minWidth: widths[4], maxWidth: widths[4] }} className="px-4 py-3 text-gray-600 overflow-hidden text-ellipsis whitespace-nowrap">{c.phone || '—'}</td>}
+                    {isVisible('notes') && <td style={{ width: widths[5], minWidth: widths[5], maxWidth: widths[5] }} className="px-4 py-3 text-gray-500 overflow-hidden text-ellipsis whitespace-nowrap">{c.notes || '—'}</td>}
+                    <td style={{ width: widths[6], minWidth: widths[6] }} className="px-4 py-3">
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => openEdit(c)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
                           <Pencil size={13} />
@@ -287,13 +324,15 @@ export default function ContactsPage() {
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit Contact' : 'Add Contact'} size="md">
         <div className="space-y-4">
           <Field label="Name *">
-            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={input} placeholder="Full name" autoFocus />
+            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={input} placeholder="Full name" />
           </Field>
           <Field label="Account">
-            <select value={form.accountId} onChange={(e) => handleAccountChange(e.target.value)} className={input}>
-              <option value="">— No account —</option>
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+            <SearchableSelect
+              value={form.accountId}
+              onChange={handleAccountChange}
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+              placeholder="— No account —"
+            />
           </Field>
           <Field label="Role">
             <input type="text" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className={input} placeholder="e.g. Program Officer" />

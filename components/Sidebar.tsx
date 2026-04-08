@@ -1,12 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Building2, Users, CheckSquare, DollarSign, GraduationCap } from 'lucide-react'
+import { usePathname, useSearchParams } from 'next/navigation'
+import { LayoutDashboard, Building2, Users, CheckSquare, DollarSign, GraduationCap, MapPin, School, Landmark } from 'lucide-react'
 
 const nav = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/accounts', label: 'Accounts', icon: Building2 },
+  { href: '/regions', label: 'Regions', icon: MapPin },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
 ]
@@ -16,9 +17,16 @@ const accountSubNav = [
   { href: '/accounts/schools', label: 'Schools/Districts', icon: GraduationCap },
 ]
 
+const schoolSubNav = [
+  { href: '/accounts/schools?level=School', label: 'Schools', icon: School },
+  { href: '/accounts/schools?level=District', label: 'Districts', icon: Landmark },
+]
+
 export default function Sidebar() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const isAccountsSection = pathname.startsWith('/accounts')
+  const isSchoolsSection = pathname.startsWith('/accounts/schools')
 
   return (
     <aside className="w-56 bg-slate-900 flex flex-col shrink-0">
@@ -28,7 +36,9 @@ export default function Sidebar() {
       </div>
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {nav.map(({ href, label, icon: Icon }) => {
-          const active = href === '/accounts' ? pathname.startsWith('/accounts') : pathname === href
+          const active = href === '/accounts' ? pathname.startsWith('/accounts')
+            : href === '/regions' ? pathname.startsWith('/regions')
+            : pathname === href
           return (
             <div key={href}>
               <Link
@@ -45,20 +55,46 @@ export default function Sidebar() {
               {href === '/accounts' && isAccountsSection && (
                 <div className="ml-5 mt-0.5 space-y-0.5">
                   {accountSubNav.map(({ href: subHref, label: subLabel, icon: SubIcon }) => {
-                    const subActive = pathname === subHref
+                    const subActive = subHref === '/accounts/schools'
+                      ? pathname.startsWith('/accounts/schools')
+                      : pathname.startsWith(subHref)
                     return (
-                      <Link
-                        key={subHref}
-                        href={subHref}
-                        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                          subActive
-                            ? 'bg-indigo-500/20 text-indigo-300'
-                            : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                        }`}
-                      >
-                        <SubIcon size={13} />
-                        {subLabel}
-                      </Link>
+                      <div key={subHref}>
+                        <Link
+                          href={subHref}
+                          className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                            subActive
+                              ? 'bg-indigo-500/20 text-indigo-300'
+                              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                          }`}
+                        >
+                          <SubIcon size={13} />
+                          {subLabel}
+                        </Link>
+                        {subHref === '/accounts/schools' && isSchoolsSection && (
+                          <div className="ml-5 mt-0.5 space-y-0.5">
+                            {schoolSubNav.map(({ href: levelHref, label: levelLabel, icon: LevelIcon }) => {
+                              const levelParam = new URL(levelHref, 'http://x').searchParams.get('level')
+                              const currentLevel = searchParams.get('level')
+                              const levelActive = pathname === '/accounts/schools' && currentLevel === levelParam
+                              return (
+                                <Link
+                                  key={levelHref}
+                                  href={levelHref}
+                                  className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                    levelActive
+                                      ? 'bg-indigo-500/20 text-indigo-300'
+                                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                                  }`}
+                                >
+                                  <LevelIcon size={12} />
+                                  {levelLabel}
+                                </Link>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
                     )
                   })}
                 </div>

@@ -23,7 +23,7 @@ export async function getRows(sheet: string): Promise<string[][]> {
   const s = await client()
   const res = await s.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${sheet}!A:Z`,
+    range: `${sheet}!A:AN`,
   })
   const rows = res.data.values || []
   return rows.length > 1 ? (rows.slice(1) as string[][]) : []
@@ -48,7 +48,7 @@ export async function updateRow(
   const s = await client()
   await s.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `${sheet}!A${sheetRow}:Z${sheetRow}`,
+    range: `${sheet}!A${sheetRow}:AN${sheetRow}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [values] },
   })
@@ -59,7 +59,7 @@ export async function deleteRow(sheet: string, rowIndex: number): Promise<void> 
   const s = await client()
   const spreadsheet = await s.spreadsheets.get({ spreadsheetId: SHEET_ID })
   const sheetObj = spreadsheet.data.sheets?.find(
-    (sh) => sh.properties?.title === sheet
+    (sh) => sh.properties?.title?.toLowerCase() === sheet.toLowerCase()
   )
   if (sheetObj?.properties?.sheetId === undefined) {
     throw new Error(`Sheet "${sheet}" not found`)

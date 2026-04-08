@@ -4,8 +4,12 @@ import { useEffect, useState, useMemo } from 'react'
 import Modal from '@/components/Modal'
 import EditableCell from '@/components/EditableCell'
 import { useColumnResize } from '@/hooks/useColumnResize'
+import { useColumnVisibility } from '@/hooks/useColumnVisibility'
+import ColumnToggle from '@/components/ColumnToggle'
 import type { Account, AccountType, Priority, Owner, AskStatus, Contact } from '@/types'
+import Link from 'next/link'
 import {
+  Plus,
   Download,
   Search,
   ChevronUp,
@@ -19,11 +23,12 @@ const FUNDER_TYPES: AccountType[] = [
   'Current Funder',
   'Former Funder',
   'Declined Funder',
+  'Other - Funder',
 ]
 
 const PRIORITIES: Priority[] = ['High', 'Medium', 'Low']
-const OWNERS: Owner[] = ['Annie', 'Sam', 'Gab']
-const REGIONS = ['Bay Area', 'DC', 'LA', 'National', 'NY']
+const OWNERS: Owner[] = ['Annie', 'Genesis', 'Sam', 'Gab', 'Krissy']
+// Regions loaded dynamically
 
 const ASK_STATUSES: AskStatus[] = [
   'Committed',
@@ -51,6 +56,15 @@ const ASK_STATUS_COLORS: Record<string, string> = {
   'No Ask': 'bg-gray-100 text-gray-600',
 }
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      {children}
+    </div>
+  )
+}
+
 function formatCurrency(val: string): string {
   if (!val) return '—'
   const num = parseFloat(val)
@@ -75,6 +89,7 @@ export default function FundersPage() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
+  const [regions, setRegions] = useState<string[]>([])
   const [error, setError] = useState('')
 
   const [search, setSearch] = useState('')
@@ -93,17 +108,20 @@ export default function FundersPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   function load() {
     setLoading(true)
     Promise.all([
       fetch('/api/accounts').then((r) => r.json()),
       fetch('/api/contacts').then((r) => r.json()),
+      fetch('/api/regions').then((r) => r.json()),
     ])
-      .then(([accountData, contactData]) => {
+      .then(([accountData, contactData, regionData]) => {
         const all: Account[] = Array.isArray(accountData) ? accountData : []
         setAccounts(all.filter((a) => FUNDER_TYPES.includes(a.type)))
         setContacts(Array.isArray(contactData) ? contactData : [])
+        setRegions((Array.isArray(regionData) ? regionData : []).map((r: { regionName: string }) => r.regionName).sort())
         setLoading(false)
       })
       .catch(() => {
@@ -113,6 +131,13 @@ export default function FundersPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
 
   const filtered = useMemo(() => {
     let list = accounts
@@ -172,13 +197,26 @@ export default function FundersPage() {
   }
 
   async function saveField(account: Account, field: keyof Account, value: string) {
+    const prev = accounts
     const updated = { ...account, [field]: value }
-    await fetch(`/api/accounts/${account.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
-    })
-    load()
+    setAccounts((cur) => cur.map((a) => (a.id === account.id ? updated : a)))
+    try {
+      const res = await fetch(`/api/accounts/${account.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      if (!res.ok) throw new Error('Save failed')
+    } catch {
+      setAccounts(prev)
+      setToast('Failed to save — reverted')
+    }
+  }
+
+  function openAdd() {
+    setEditing(null)
+    setForm({ type: 'Prospective Funder', priority: 'Medium', owner: 'Annie' })
+    setShowForm(true)
   }
 
   function openEdit(a: Account) {
@@ -189,14 +227,22 @@ export default function FundersPage() {
   }
 
   async function handleSave() {
-    if (!editing) return
+    if (!editing && !form.name?.trim()) return
     setSaving(true)
     try {
-      await fetch(`/api/accounts/${editing.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...editing, ...form }),
-      })
+      if (editing) {
+        await fetch(`/api/accounts/${editing.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...editing, ...form }),
+        })
+      } else {
+        await fetch('/api/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        })
+      }
       setShowForm(false)
       load()
     } finally {
@@ -243,17 +289,11 @@ export default function FundersPage() {
   ]
 
   const { widths, onMouseDown } = useColumnResize(COLUMNS.length, 130)
+  const { hiddenKeys, toggle: toggleColumn, isVisible } = useColumnVisibility('funders')
 
   const hasFilters = search || filterType || filterPriority || filterOwner || filterRegion || filterStatus
 
   const input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
-
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      {children}
-    </div>
-  )
 
   return (
     <div className="p-8">
@@ -262,12 +302,20 @@ export default function FundersPage() {
           <h1 className="text-2xl font-bold text-gray-900">Funders</h1>
           <p className="text-sm text-gray-500 mt-0.5">{accounts.length} total</p>
         </div>
-        <button
-          onClick={exportCSV}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600"
-        >
-          <Download size={14} /> Export
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600"
+          >
+            <Download size={14} /> Export
+          </button>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            <Plus size={14} /> Add Funder
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -300,7 +348,7 @@ export default function FundersPage() {
         </select>
         <select value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
           <option value="">All Regions</option>
-          {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          {regions.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         {hasFilters && (
           <button
@@ -310,6 +358,12 @@ export default function FundersPage() {
             Clear filters
           </button>
         )}
+        <ColumnToggle
+          columns={COLUMNS.map(([key, label]) => ({ key, label }))}
+          hiddenKeys={hiddenKeys}
+          onToggle={toggleColumn}
+          alwaysVisible={['name']}
+        />
       </div>
 
       {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
@@ -325,13 +379,13 @@ export default function FundersPage() {
             <table className="text-sm" style={{ minWidth: '100%' }}>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {COLUMNS.map(([key, label], i) => (
+                  {COLUMNS.map(([key, label], i) => isVisible(key) && (
                     <th
                       key={key}
                       onClick={() => toggleSort(key)}
                       style={{ width: widths[i], minWidth: widths[i] }}
                       className={`relative text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none whitespace-nowrap ${
-                        i === 0 ? 'sticky left-0 z-10 bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
+                        key === 'name' ? 'sticky left-0 z-10 bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
                       }`}
                     >
                       <span className="flex items-center gap-1">
@@ -352,9 +406,9 @@ export default function FundersPage() {
                   const overdue = a.nextFollowUpDate && a.nextFollowUpDate < today()
                   const pc = primaryContactMap[a.id]
                   const cells = [
-                    <EditableCell value={a.name} onSave={(v) => saveField(a, 'name', v)}>
-                      <span className="font-medium text-gray-900">{a.name}</span>
-                    </EditableCell>,
+                    <Link href={`/accounts/funders/${a.id}`} className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
+                      {a.name}
+                    </Link>,
                     <EditableCell value={a.type} fieldType="select" options={FUNDER_TYPES} onSave={(v) => saveField(a, 'type', v)}>
                       <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{a.type}</span>
                     </EditableCell>,
@@ -364,7 +418,7 @@ export default function FundersPage() {
                     ) : (
                       <span className="text-gray-400">—</span>
                     ),
-                    <EditableCell value={a.region} fieldType="select" options={REGIONS} onSave={(v) => saveField(a, 'region', v)}>
+                    <EditableCell value={a.region} fieldType="select" options={regions} onSave={(v) => saveField(a, 'region', v)}>
                       <span className="text-gray-600">{a.region || '—'}</span>
                     </EditableCell>,
                     <EditableCell value={a.priority} fieldType="select" options={PRIORITIES} onSave={(v) => saveField(a, 'priority', v)}>
@@ -394,12 +448,12 @@ export default function FundersPage() {
                   ]
                   return (
                     <tr key={a.id} className="hover:bg-gray-50 group">
-                      {cells.map((cell, i) => (
+                      {cells.map((cell, i) => isVisible(COLUMNS[i][0]) && (
                         <td
                           key={i}
                           style={{ width: widths[i], minWidth: widths[i], maxWidth: widths[i] }}
                           className={`px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap ${
-                            i === 0 ? 'sticky left-0 z-10 bg-white group-hover:bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
+                            COLUMNS[i][0] === 'name' ? 'sticky left-0 z-10 bg-white group-hover:bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
                           }`}
                         >
                           {cell}
@@ -421,7 +475,7 @@ export default function FundersPage() {
       </div>
 
       {/* Edit Modal */}
-      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={`Edit Funder — ${editing?.name}`} size="lg">
+      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editing ? `Edit Funder — ${editing.name}` : 'Add Funder'} size="lg">
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <Field label="Name">
@@ -436,7 +490,7 @@ export default function FundersPage() {
           <Field label="Region">
             <select value={form.region || ''} onChange={(e) => setForm({ ...form, region: e.target.value })} className={input}>
               <option value="">— Select region —</option>
-              {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              {regions.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </Field>
           <Field label="Priority">
@@ -480,8 +534,8 @@ export default function FundersPage() {
         </div>
         <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-100">
           <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-            {saving ? 'Saving...' : 'Save Changes'}
+          <button onClick={handleSave} disabled={saving || !form.name?.trim()} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+            {saving ? 'Saving...' : editing ? 'Save Changes' : 'Add Funder'}
           </button>
         </div>
       </Modal>
@@ -496,6 +550,12 @@ export default function FundersPage() {
           </button>
         </div>
       </Modal>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

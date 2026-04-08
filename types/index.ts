@@ -3,14 +3,28 @@ export type AccountType =
   | 'Current Funder'
   | 'Former Funder'
   | 'Declined Funder'
-  | 'Prospective School/District'
-  | 'Current School/District'
-  | 'Former School/District'
-  | 'Declined School/District'
+  | 'Prospective'
+  | 'Current Partner'
+  | 'Indirect Partner'
+  | 'Declined Partner'
+  | 'Past Partner'
+  | 'Other - Education'
+  | 'Other - Funder'
+
+// School/District type constants
+export const SCHOOL_TYPES: AccountType[] = [
+  'Prospective',
+  'Current Partner',
+  'Indirect Partner',
+  'Declined Partner',
+  'Past Partner',
+  'Other - Education',
+]
 
 export type Priority = 'High' | 'Medium' | 'Low'
-export type Owner = 'Annie' | 'Sam' | 'Gab'
-export type TaskStatus = 'Not Started' | 'In Progress' | 'Complete'
+export type Owner = 'Annie' | 'Genesis' | 'Sam' | 'Gab' | 'Krissy'
+export type TaskStatus = 'Not Started' | 'In Progress' | 'Blocked' | 'Complete'
+export type TaskType = 'Follow-up' | 'Outreach' | 'Internal' | 'Other'
 
 export type AskStatus =
   | 'Committed'
@@ -22,6 +36,7 @@ export type AskStatus =
   | 'No Ask'
 
 export type EngagementType = 'High Level' | 'Medium Level' | 'Low Level'
+export type AccountLevel = 'District' | 'CMO' | 'School' | ''
 
 export interface Account {
   id: string
@@ -52,6 +67,29 @@ export interface Account {
   assessmentName: string
   mathCurriculum: string
   elaCurriculum: string
+  granolaNotesUrl: string
+  obcStatus: string
+  contractCap: string
+  dsaStatus: string
+  district: string
+  parentDistrictId: string
+  accountLevel: AccountLevel
+  mouStatus: string
+  dataReceived: string
+  districtAssessmentMath: string
+  districtAssessmentReading: string
+  testWindow: string
+  matchedStudents: string
+  assessmentFollowUpNotes: string
+}
+
+export interface Region {
+  regionName: string
+  regionGoalSY26: string
+  regionGoalSY27: string
+  currentStatus: string
+  openQuestions: string
+  nextMoves: string
 }
 
 export interface Contact {
@@ -65,6 +103,18 @@ export interface Contact {
   notes: string
 }
 
+export type ActivityType = 'Call' | 'Email' | 'Meeting' | 'Note' | 'Other'
+
+export interface Activity {
+  id: string
+  accountId: string
+  date: string
+  type: ActivityType
+  description: string
+  loggedBy: string
+  sourceId: string
+}
+
 export interface Task {
   id: string
   accountId: string
@@ -74,4 +124,7 @@ export interface Task {
   dueDate: string
   status: TaskStatus
   notes: string
+  region: string
+  completedDate: string
+  type: TaskType
 }

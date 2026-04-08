@@ -39,6 +39,20 @@ export async function PUT(
       body.assessmentName || '',
       body.mathCurriculum || '',
       body.elaCurriculum || '',
+      body.granolaNotesUrl || '',
+      body.obcStatus || '',
+      body.contractCap || '',
+      body.dsaStatus || '',
+      body.district || '',
+      body.parentDistrictId || '',
+      body.accountLevel || '',
+      body.mouStatus || '',
+      body.dataReceived || '',
+      body.districtAssessmentMath || '',
+      body.districtAssessmentReading || '',
+      body.testWindow || '',
+      body.matchedStudents || '',
+      body.assessmentFollowUpNotes || '',
     ])
     return NextResponse.json({ ok: true })
   } catch (e) {
