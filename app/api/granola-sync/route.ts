@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRows, appendRow, updateRow } from '@/lib/sheets'
-import { fetchRecentNotes, getNoteContent } from '@/lib/granola'
+import { fetchRecentNotes, getNoteContent, extractNextSteps } from '@/lib/granola'
 import { parseMeetingNote } from '@/lib/ai-parse'
+// Email drafts feature disabled — can re-enable later
+// import { getAssigneeEmail, createTaskDraft } from '@/lib/gmail'
+// import { saveDraftRecord } from '@/app/api/email-drafts/route'
 import type { Account, Contact } from '@/types'
 
 function rowToContact(row: string[]): Contact {
@@ -126,6 +129,20 @@ function rowToAccount(row: string[]): Account {
     assessmentName: row[23] || '',
     mathCurriculum: row[24] || '',
     elaCurriculum: row[25] || '',
+    granolaNotesUrl: row[26] || '',
+    obcStatus: row[27] || '',
+    contractCap: row[28] || '',
+    dsaStatus: row[29] || '',
+    district: row[30] || '',
+    parentDistrictId: row[31] || '',
+    accountLevel: (row[32] || '') as Account['accountLevel'],
+    mouStatus: row[33] || '',
+    dataReceived: row[34] || '',
+    districtAssessmentMath: row[35] || '',
+    districtAssessmentReading: row[36] || '',
+    testWindow: row[37] || '',
+    matchedStudents: row[38] || '',
+    assessmentFollowUpNotes: row[39] || '',
   }
 }
 
@@ -151,13 +168,12 @@ async function markNoteProcessed(noteId: string, title: string, matchedAccount: 
 export async function POST(req: NextRequest) {
   try {
     // Verify this is a manual trigger or cron
-    const authHeader = req.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
-    const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`
+    const isVercelCron = cronSecret && req.headers.get('authorization') === `Bearer ${cronSecret}`
+    const isCronToken = cronSecret && req.headers.get('x-vercel-cron-auth-token') === cronSecret
     const isManual = req.headers.get('x-manual-trigger') === 'true'
 
-    if (!isCron && !isManual) {
-      // Allow from same origin (browser requests won't have cron auth)
+    if (!isVercelCron && !isCronToken && !isManual) {
       const origin = req.headers.get('origin') || req.headers.get('referer')
       if (!origin) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -181,6 +197,15 @@ export async function POST(req: NextRequest) {
     const contactRows = await getRows('Contacts')
     const allContacts = contactRows.filter((r) => r[0]).map(rowToContact)
 
+    // Load existing activity sourceIds for deduplication
+    let existingSourceIds: Set<string>
+    try {
+      const activityRows = await getRows('Activity')
+      existingSourceIds = new Set(activityRows.map((r) => r[6]).filter(Boolean))
+    } catch {
+      existingSourceIds = new Set()
+    }
+
     let syncedCount = 0
     const results: {
       noteId: string
@@ -191,6 +216,8 @@ export async function POST(req: NextRequest) {
       summary: string
       contentFields: Record<string, boolean>
       contentLength: number
+      nextStepsLength?: number
+      actionItems?: string[]
       rawKeys?: string[]
     }[] = []
 
@@ -214,10 +241,12 @@ export async function POST(req: NextRequest) {
       const content = getNoteContent(note)
       const rawKeys = Object.keys(note)
       const contentFields = {
+        has_summary: !!note.summary,
         has_notes: !!note.notes,
         has_notes_markdown: !!note.notes_markdown,
         has_summary_markdown: !!note.summary_markdown,
         has_summary_text: !!note.summary_text,
+        has_panels: Array.isArray(note.panels) && note.panels.length > 0,
         has_transcript: Array.isArray(note.transcript) && note.transcript.length > 0,
       }
 
@@ -236,7 +265,8 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      const parsed = await parseMeetingNote(note.title, content, accountNames)
+      const nextSteps = extractNextSteps(note)
+      const parsed = await parseMeetingNote(note.title, content, accountNames, nextSteps || undefined)
 
       // 5. Match to account — first by org name, then by linked contacts
       const matchedAccount =
@@ -255,18 +285,39 @@ export async function POST(req: NextRequest) {
             ? `${existingNotes}\n${summaryLine}`
             : summaryLine
 
-          // Pad row to at least 26 columns (A-Z) so sparse rows don't lose data
-          const updatedRow = Array.from({ length: 26 }, (_, i) => accountRows[idx][i] || '')
+          // Pad row to at least 40 columns (A-AN) so sparse rows don't lose data
+          const updatedRow = Array.from({ length: 40 }, (_, i) => accountRows[idx][i] || '')
           updatedRow[6] = today // lastContactDate
           updatedRow[9] = updatedNotes // notes
           await updateRow('Accounts', idx, updatedRow)
         }
 
+        // 6b. Auto-log Granola meeting as activity (deduplicate by sourceId)
+        if (!existingSourceIds.has(note.id)) {
+          const meetingDate = note.created_at
+            ? new Date(note.created_at).toISOString().split('T')[0]
+            : today
+          try {
+            await appendRow('Activity', [
+              crypto.randomUUID(),
+              matchedAccount.id,
+              meetingDate,
+              'Meeting',
+              `[Granola] ${note.title}`,
+              matchedAccount.owner || 'Granola Sync',
+              note.id,
+            ])
+            existingSourceIds.add(note.id)
+          } catch (e) {
+            console.error('Failed to log Granola activity:', e)
+          }
+        }
+
         // 7. Create tasks for action items
         for (const item of parsed.actionItems) {
-          const assignee = ['Annie', 'Sam', 'Gab'].find(
+          const assignee = ['Annie', 'Genesis', 'Sam', 'Gab', 'Krissy'].find(
             (o) => o.toLowerCase() === item.assignee.toLowerCase()
-          ) || 'Annie'
+          ) || ''
 
           await appendRow('Tasks', [
             crypto.randomUUID(),
@@ -277,7 +328,36 @@ export async function POST(req: NextRequest) {
             item.dueDate || '',
             'Not Started',
             `From Granola: ${note.title}`,
+            '',
+            '',
+            'Other',
           ])
+
+          // Email drafts feature disabled — can re-enable later
+          // if (assignee) {
+          //   const email = getAssigneeEmail(assignee)
+          //   if (email) {
+          //     try {
+          //       const draftId = await createTaskDraft(email, {
+          //         taskTitle: item.title,
+          //         taskNotes: `From Granola: ${note.title}`,
+          //         accountName: matchedAccount.name,
+          //         assignee,
+          //         dueDate: item.dueDate || '',
+          //       })
+          //       await saveDraftRecord(
+          //         draftId,
+          //         item.title,
+          //         matchedAccount.name,
+          //         assignee,
+          //         email,
+          //         item.dueDate || ''
+          //       )
+          //     } catch (e) {
+          //       console.error('Failed to create email draft:', e)
+          //     }
+          //   }
+          // }
         }
       }
 
@@ -297,6 +377,8 @@ export async function POST(req: NextRequest) {
         summary: parsed.summary,
         contentFields,
         contentLength: content.length,
+        nextStepsLength: nextSteps.length,
+        actionItems: parsed.actionItems.map((a) => a.title),
       })
       syncedCount++
     }

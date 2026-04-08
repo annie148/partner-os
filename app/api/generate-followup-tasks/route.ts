@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getRows, appendRow } from '@/lib/sheets'
-import { todayPacific } from '@/lib/date'
+import { todayPacific, offsetDaysPacific } from '@/lib/date'
 import type { Task } from '@/types'
 
 function rowToTask(row: string[]): Task {
@@ -32,6 +32,7 @@ export async function POST() {
     ])
 
     const todayStr = todayPacific()
+    const sevenDaysAgoStr = offsetDaysPacific(-7)
     const tasks = taskRows.filter((r) => r[0]).map(rowToTask)
 
     // Find accounts with overdue follow-up dates
@@ -48,14 +49,15 @@ export async function POST() {
 
     let created = 0
     for (const acct of overdueAccounts) {
-      // Check if there's already a Follow-up task for this account —
-      // either still open, or completed with the same due date (to avoid
-      // re-creating a task the user just checked off)
+      // Check if there's already a Follow-up task for this account that is:
+      // - still open (any status except Complete), OR
+      // - completed within the last 7 days (avoid re-creating tasks the user just checked off,
+      //   even if the account's nextFollowUpDate has changed since)
       const hasExistingFollowUp = tasks.some(
         (t) =>
           t.accountId === acct.id &&
           t.type === 'Follow-up' &&
-          (t.status !== 'Complete' || t.dueDate === acct.nextFollowUpDate)
+          (t.status !== 'Complete' || t.completedDate >= sevenDaysAgoStr)
       )
       if (hasExistingFollowUp) continue
 

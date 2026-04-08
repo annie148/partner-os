@@ -1,11 +1,17 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { Suspense, useEffect, useState, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Modal from '@/components/Modal'
 import EditableCell from '@/components/EditableCell'
 import { useColumnResize } from '@/hooks/useColumnResize'
+import { useColumnVisibility } from '@/hooks/useColumnVisibility'
+import ColumnToggle from '@/components/ColumnToggle'
 import type { Account, AccountType, Priority, Owner, EngagementType, Contact } from '@/types'
+import { SCHOOL_TYPES } from '@/types'
+import Link from 'next/link'
 import {
+  Plus,
   Download,
   Search,
   ChevronUp,
@@ -15,16 +21,9 @@ import {
   ExternalLink,
 } from 'lucide-react'
 
-const SCHOOL_TYPES: AccountType[] = [
-  'Prospective School/District',
-  'Current School/District',
-  'Former School/District',
-  'Declined School/District',
-]
-
 const PRIORITIES: Priority[] = ['High', 'Medium', 'Low']
-const OWNERS: Owner[] = ['Annie', 'Sam', 'Gab']
-const REGIONS = ['Bay Area', 'DC', 'LA', 'National', 'NY']
+const OWNERS: Owner[] = ['Annie', 'Genesis', 'Sam', 'Gab', 'Krissy']
+// Regions loaded dynamically
 const ENGAGEMENT_TYPES: EngagementType[] = ['High Level', 'Medium Level', 'Low Level']
 
 const PRIORITY_COLORS: Record<Priority, string> = {
@@ -49,6 +48,15 @@ function today() {
   return new Date().toISOString().split('T')[0]
 }
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      {children}
+    </div>
+  )
+}
+
 function LinkCell({ url, label }: { url: string; label: string }) {
   if (!url) return <span className="text-gray-400">—</span>
   return (
@@ -61,18 +69,31 @@ function LinkCell({ url, label }: { url: string; label: string }) {
 type SortKey = keyof Account
 type SortDir = 'asc' | 'desc'
 
-export default function SchoolsPage() {
+export default function SchoolsPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-gray-400">Loading...</div>}>
+      <SchoolsPage />
+    </Suspense>
+  )
+}
+
+function SchoolsPage() {
+  const searchParams = useSearchParams()
+  const levelParam = searchParams.get('level') // 'School' | 'District' | null (all)
+
   const [accounts, setAccounts] = useState<Account[]>([])
+  const [allAccounts, setAllAccounts] = useState<Account[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [regions, setRegions] = useState<string[]>([])
 
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
   const [filterOwner, setFilterOwner] = useState('')
   const [filterRegion, setFilterRegion] = useState('')
-  const [filterEngagement, setFilterEngagement] = useState('')
+  const [filterLevel, setFilterLevel] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -83,17 +104,29 @@ export default function SchoolsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   function load() {
     setLoading(true)
     Promise.all([
       fetch('/api/accounts').then((r) => r.json()),
       fetch('/api/contacts').then((r) => r.json()),
+      fetch('/api/regions').then((r) => r.json()),
     ])
-      .then(([accountData, contactData]) => {
+      .then(([accountData, contactData, regionData]) => {
         const all: Account[] = Array.isArray(accountData) ? accountData : []
-        setAccounts(all.filter((a) => SCHOOL_TYPES.includes(a.type)))
+        setAllAccounts(all)
+        let schoolAccounts = all.filter((a) => SCHOOL_TYPES.includes(a.type))
+        if (levelParam) {
+          schoolAccounts = schoolAccounts.filter((a) =>
+            levelParam === 'District'
+              ? a.accountLevel === 'District' || a.accountLevel === 'CMO'
+              : a.accountLevel === levelParam
+          )
+        }
+        setAccounts(schoolAccounts)
         setContacts(Array.isArray(contactData) ? contactData : [])
+        setRegions((Array.isArray(regionData) ? regionData : []).map((r: { regionName: string }) => r.regionName).sort())
         setLoading(false)
       })
       .catch(() => {
@@ -102,7 +135,14 @@ export default function SchoolsPage() {
       })
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [levelParam])
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
 
   const filtered = useMemo(() => {
     let list = accounts
@@ -120,7 +160,7 @@ export default function SchoolsPage() {
     if (filterPriority) list = list.filter((a) => a.priority === filterPriority)
     if (filterOwner) list = list.filter((a) => a.owner === filterOwner)
     if (filterRegion) list = list.filter((a) => a.region === filterRegion)
-    if (filterEngagement) list = list.filter((a) => a.engagementType === filterEngagement)
+    if (filterLevel) list = list.filter((a) => a.accountLevel === filterLevel)
     list = [...list].sort((a, b) => {
       const av = a[sortKey] || ''
       const bv = b[sortKey] || ''
@@ -129,7 +169,7 @@ export default function SchoolsPage() {
         : String(bv).localeCompare(String(av))
     })
     return list
-  }, [accounts, search, filterType, filterPriority, filterOwner, filterRegion, filterEngagement, sortKey, sortDir])
+  }, [accounts, search, filterType, filterPriority, filterOwner, filterRegion, filterLevel, sortKey, sortDir])
 
   const primaryContactMap = useMemo(() => {
     const map: Record<string, Contact> = {}
@@ -140,6 +180,26 @@ export default function SchoolsPage() {
     }
     return map
   }, [contacts])
+
+  // Map account ID → account for district lookups and inheritance
+  const accountById = useMemo(() => {
+    const map: Record<string, Account> = {}
+    for (const a of allAccounts) { map[a.id] = a }
+    return map
+  }, [allAccounts])
+
+  const districtNameMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const a of allAccounts) { map[a.id] = a.name }
+    return map
+  }, [allAccounts])
+
+  // Districts available as parents: accounts with accountLevel District or CMO
+  const districtOptions = useMemo(() => {
+    return allAccounts
+      .filter((a) => a.accountLevel === 'District' || a.accountLevel === 'CMO')
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [allAccounts])
 
   function toggleSort(key: string) {
     if (key.startsWith('_')) return
@@ -157,14 +217,52 @@ export default function SchoolsPage() {
     )
   }
 
+  async function saveLevel(account: Account, newLevel: string) {
+    const oldLevel = account.accountLevel
+    const isDowngrade = (oldLevel === 'District' || oldLevel === 'CMO') && newLevel === 'School'
+    if (isDowngrade) {
+      const children = allAccounts.filter((a) => a.parentDistrictId === account.id)
+      if (children.length > 0) {
+        const names = children.slice(0, 5).map((c) => c.name).join(', ')
+        const suffix = children.length > 5 ? `, and ${children.length - 5} more` : ''
+        const ok = window.confirm(
+          `${account.name} is the parent district for ${children.length} school(s): ${names}${suffix}.\n\nChanging to School will clear these parent links. Continue?`
+        )
+        if (!ok) return
+        // Clear parentDistrictId on all children
+        for (const child of children) {
+          await fetch(`/api/accounts/${child.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...child, parentDistrictId: '' }),
+          })
+        }
+      }
+    }
+    await saveField(account, 'accountLevel', newLevel)
+  }
+
   async function saveField(account: Account, field: keyof Account, value: string) {
+    const prev = accounts
     const updated = { ...account, [field]: value }
-    await fetch(`/api/accounts/${account.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
-    })
-    load()
+    setAccounts((cur) => cur.map((a) => (a.id === account.id ? updated : a)))
+    try {
+      const res = await fetch(`/api/accounts/${account.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      if (!res.ok) throw new Error('Save failed')
+    } catch {
+      setAccounts(prev)
+      setToast('Failed to save — reverted')
+    }
+  }
+
+  function openAdd() {
+    setEditing(null)
+    setForm({ type: 'Prospective' as AccountType, priority: 'Medium', owner: 'Annie', ...(levelParam ? { accountLevel: levelParam as Account['accountLevel'] } : {}) })
+    setShowForm(true)
   }
 
   function openEdit(a: Account) {
@@ -175,14 +273,22 @@ export default function SchoolsPage() {
   }
 
   async function handleSave() {
-    if (!editing) return
+    if (!editing && !form.name?.trim()) return
     setSaving(true)
     try {
-      await fetch(`/api/accounts/${editing.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...editing, ...form }),
-      })
+      if (editing) {
+        await fetch(`/api/accounts/${editing.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...editing, ...form }),
+        })
+      } else {
+        await fetch('/api/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        })
+      }
       setShowForm(false)
       load()
     } finally {
@@ -212,8 +318,10 @@ export default function SchoolsPage() {
     URL.revokeObjectURL(url)
   }
 
-  const COLUMNS: [SortKey | '_contactName' | '_contactEmail', string][] = [
+  const COLUMNS: [SortKey | '_contactName' | '_contactEmail' | '_district', string][] = [
     ['name', 'Name'],
+    ['accountLevel', 'Level'],
+    ['_district', 'District'],
     ['type', 'Type'],
     ['_contactName', 'Contact Name'],
     ['_contactEmail', 'Contact Email'],
@@ -233,35 +341,47 @@ export default function SchoolsPage() {
     ['lastContactDate', 'Last Contact'],
     ['nextFollowUpDate', 'Next Follow-up'],
     ['nextAction', 'Next Action'],
+    ['dsaStatus', 'DSA Status'],
+    ['mouStatus', 'MOU Status'],
+    ['dataReceived', 'Data Received'],
+    ['matchedStudents', 'Matched Students'],
+    ['districtAssessmentMath', 'Assessment (Math)'],
+    ['districtAssessmentReading', 'Assessment (Reading)'],
   ]
 
   // +1 for the Links column
   const { widths, onMouseDown } = useColumnResize(COLUMNS.length + 1, 120)
+  const { hiddenKeys, toggle: toggleColumn, isVisible } = useColumnVisibility('schools', [
+    'dsaStatus', 'mouStatus', 'dataReceived', 'matchedStudents', 'districtAssessmentMath', 'districtAssessmentReading',
+  ])
 
-  const hasFilters = search || filterType || filterPriority || filterOwner || filterRegion || filterEngagement
+  const hasFilters = search || filterType || filterPriority || filterOwner || filterRegion || filterLevel
 
   const input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
-
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      {children}
-    </div>
-  )
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Schools / Districts</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {levelParam === 'School' ? 'Schools' : levelParam === 'District' ? 'Districts' : 'Schools / Districts'}
+          </h1>
           <p className="text-sm text-gray-500 mt-0.5">{accounts.length} total</p>
         </div>
-        <button
-          onClick={exportCSV}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600"
-        >
-          <Download size={14} /> Export
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600"
+          >
+            <Download size={14} /> Export
+          </button>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+          >
+            <Plus size={14} /> Add School/District
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -280,9 +400,11 @@ export default function SchoolsPage() {
           <option value="">All Types</option>
           {SCHOOL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-        <select value={filterEngagement} onChange={(e) => setFilterEngagement(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">All Engagement Levels</option>
-          {ENGAGEMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">All Levels</option>
+          <option value="District">District</option>
+          <option value="CMO">CMO</option>
+          <option value="School">School</option>
         </select>
         <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
           <option value="">All Priorities</option>
@@ -294,16 +416,22 @@ export default function SchoolsPage() {
         </select>
         <select value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
           <option value="">All Regions</option>
-          {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          {regions.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         {hasFilters && (
           <button
-            onClick={() => { setSearch(''); setFilterType(''); setFilterPriority(''); setFilterOwner(''); setFilterRegion(''); setFilterEngagement('') }}
+            onClick={() => { setSearch(''); setFilterType(''); setFilterPriority(''); setFilterOwner(''); setFilterRegion(''); setFilterLevel('') }}
             className="text-sm text-gray-400 hover:text-gray-600 px-2"
           >
             Clear filters
           </button>
         )}
+        <ColumnToggle
+          columns={[...COLUMNS.map(([key, label]) => ({ key, label })), { key: '_links', label: 'Links' }]}
+          hiddenKeys={hiddenKeys}
+          onToggle={toggleColumn}
+          alwaysVisible={['name']}
+        />
       </div>
 
       {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
@@ -319,13 +447,13 @@ export default function SchoolsPage() {
             <table className="text-sm" style={{ minWidth: '100%' }}>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {COLUMNS.map(([key, label], i) => (
+                  {COLUMNS.map(([key, label], i) => isVisible(key) && (
                     <th
                       key={key}
                       onClick={() => toggleSort(key)}
                       style={{ width: widths[i], minWidth: widths[i] }}
                       className={`relative text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none whitespace-nowrap ${
-                        i === 0 ? 'sticky left-0 z-10 bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
+                        key === 'name' ? 'sticky left-0 z-10 bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
                       }`}
                     >
                       <span className="flex items-center gap-1">
@@ -338,16 +466,18 @@ export default function SchoolsPage() {
                       />
                     </th>
                   ))}
-                  <th
-                    style={{ width: widths[COLUMNS.length], minWidth: widths[COLUMNS.length] }}
-                    className="relative text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
-                  >
-                    Links
-                    <div
-                      onMouseDown={(e) => { e.stopPropagation(); onMouseDown(COLUMNS.length, e) }}
-                      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/40 z-20"
-                    />
-                  </th>
+                  {isVisible('_links') && (
+                    <th
+                      style={{ width: widths[COLUMNS.length], minWidth: widths[COLUMNS.length] }}
+                      className="relative text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
+                    >
+                      Links
+                      <div
+                        onMouseDown={(e) => { e.stopPropagation(); onMouseDown(COLUMNS.length, e) }}
+                        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-indigo-400/40 z-20"
+                      />
+                    </th>
+                  )}
                   <th className="px-4 py-3 w-16" />
                 </tr>
               </thead>
@@ -355,10 +485,28 @@ export default function SchoolsPage() {
                 {filtered.map((a) => {
                   const overdue = a.nextFollowUpDate && a.nextFollowUpDate < today()
                   const pc = primaryContactMap[a.id]
+                  const parentName = a.parentDistrictId ? districtNameMap[a.parentDistrictId] : ''
+                  const levelColors: Record<string, string> = {
+                    District: 'bg-blue-100 text-blue-700',
+                    CMO: 'bg-orange-100 text-orange-700',
+                    School: 'bg-gray-100 text-gray-600',
+                  }
                   const cells = [
-                    <EditableCell value={a.name} onSave={(v) => saveField(a, 'name', v)}>
-                      <span className="font-medium text-gray-900">{a.name}</span>
+                    <Link href={`/accounts/schools/${a.id}`} className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline">
+                      {a.name}
+                    </Link>,
+                    <EditableCell value={a.accountLevel || ''} fieldType="select" options={['District', 'CMO', 'School']} onSave={(v) => saveLevel(a, v)}>
+                      {a.accountLevel ? (
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${levelColors[a.accountLevel] || 'bg-gray-100 text-gray-600'}`}>{a.accountLevel}</span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </EditableCell>,
+                    parentName ? (
+                      <Link href={`/accounts/schools/${a.parentDistrictId}`} className="text-indigo-600 hover:underline text-xs">{parentName}</Link>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    ),
                     <EditableCell value={a.type} fieldType="select" options={SCHOOL_TYPES} onSave={(v) => saveField(a, 'type', v)}>
                       <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{a.type}</span>
                     </EditableCell>,
@@ -368,7 +516,7 @@ export default function SchoolsPage() {
                     ) : (
                       <span className="text-gray-400">—</span>
                     ),
-                    <EditableCell value={a.region} fieldType="select" options={REGIONS} onSave={(v) => saveField(a, 'region', v)}>
+                    <EditableCell value={a.region} fieldType="select" options={regions} onSave={(v) => saveField(a, 'region', v)}>
                       <span className="text-gray-600">{a.region || '—'}</span>
                     </EditableCell>,
                     <EditableCell value={a.priority} fieldType="select" options={PRIORITIES} onSave={(v) => saveField(a, 'priority', v)}>
@@ -416,30 +564,44 @@ export default function SchoolsPage() {
                     <EditableCell value={a.nextAction} onSave={(v) => saveField(a, 'nextAction', v)}>
                       <span className="text-gray-600">{a.nextAction || '—'}</span>
                     </EditableCell>,
+                    ...(() => {
+                      const parent = a.parentDistrictId ? accountById[a.parentDistrictId] : null
+                      const inherit = (field: keyof Account) => a[field] || (parent ? parent[field] : '') || ''
+                      return [
+                        <span className="text-gray-600">{inherit('dsaStatus') || '—'}</span>,
+                        <span className="text-gray-600">{inherit('mouStatus') || '—'}</span>,
+                        <span className="text-gray-600">{inherit('dataReceived') || '—'}</span>,
+                        <span className="text-gray-600">{inherit('matchedStudents') || '—'}</span>,
+                        <span className="text-gray-600 text-xs">{inherit('districtAssessmentMath') || '—'}</span>,
+                        <span className="text-gray-600 text-xs">{inherit('districtAssessmentReading') || '—'}</span>,
+                      ]
+                    })(),
                   ]
                   return (
                     <tr key={a.id} className="hover:bg-gray-50 group">
-                      {cells.map((cell, i) => (
+                      {cells.map((cell, i) => isVisible(COLUMNS[i][0]) && (
                         <td
                           key={i}
                           style={{ width: widths[i], minWidth: widths[i], maxWidth: widths[i] }}
                           className={`px-4 py-3 overflow-hidden text-ellipsis whitespace-nowrap ${
-                            i === 0 ? 'sticky left-0 z-10 bg-white group-hover:bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
+                            COLUMNS[i][0] === 'name' ? 'sticky left-0 z-10 bg-white group-hover:bg-gray-50 after:absolute after:right-0 after:top-0 after:bottom-0 after:w-px after:bg-gray-200' : ''
                           }`}
                         >
                           {cell}
                         </td>
                       ))}
-                      <td
-                        style={{ width: widths[COLUMNS.length], minWidth: widths[COLUMNS.length], maxWidth: widths[COLUMNS.length] }}
-                        className="px-4 py-3 overflow-hidden whitespace-nowrap"
-                      >
-                        <div className="flex items-center gap-3">
-                          <LinkCell url={a.partnerDashboardLink} label="Dashboard" />
-                          <LinkCell url={a.partnerEnrollmentToolkit} label="Toolkit" />
-                          <LinkCell url={a.googleDriveFile} label="Drive" />
-                        </div>
-                      </td>
+                      {isVisible('_links') && (
+                        <td
+                          style={{ width: widths[COLUMNS.length], minWidth: widths[COLUMNS.length], maxWidth: widths[COLUMNS.length] }}
+                          className="px-4 py-3 overflow-hidden whitespace-nowrap"
+                        >
+                          <div className="flex items-center gap-3">
+                            <LinkCell url={a.partnerDashboardLink} label="Dashboard" />
+                            <LinkCell url={a.partnerEnrollmentToolkit} label="Toolkit" />
+                            <LinkCell url={a.googleDriveFile} label="Drive" />
+                          </div>
+                        </td>
+                      )}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => openEdit(a)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"><Pencil size={13} /></button>
@@ -456,7 +618,7 @@ export default function SchoolsPage() {
       </div>
 
       {/* Edit Modal */}
-      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={`Edit School/District — ${editing?.name}`} size="xl">
+      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editing ? `Edit School/District — ${editing.name}` : 'Add School/District'} size="xl">
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <Field label="Name">
@@ -468,10 +630,18 @@ export default function SchoolsPage() {
               {SCHOOL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </Field>
+          <Field label="Level">
+            <select value={form.accountLevel || ''} onChange={(e) => setForm({ ...form, accountLevel: e.target.value as Account['accountLevel'] })} className={input}>
+              <option value="">— Select —</option>
+              <option value="District">District</option>
+              <option value="CMO">CMO</option>
+              <option value="School">School</option>
+            </select>
+          </Field>
           <Field label="Region">
             <select value={form.region || ''} onChange={(e) => setForm({ ...form, region: e.target.value })} className={input}>
               <option value="">— Select region —</option>
-              {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              {regions.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </Field>
           <Field label="Priority">
@@ -482,6 +652,12 @@ export default function SchoolsPage() {
           <Field label="Owner">
             <select value={form.owner || ''} onChange={(e) => setForm({ ...form, owner: e.target.value as Owner })} className={input}>
               {OWNERS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </Field>
+          <Field label="Parent District">
+            <select value={form.parentDistrictId || ''} onChange={(e) => setForm({ ...form, parentDistrictId: e.target.value })} className={input}>
+              <option value="">— None —</option>
+              {districtOptions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </Field>
           <Field label="Goal">
@@ -545,8 +721,8 @@ export default function SchoolsPage() {
         </div>
         <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-100">
           <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-            {saving ? 'Saving...' : 'Save Changes'}
+          <button onClick={handleSave} disabled={saving || !form.name?.trim()} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+            {saving ? 'Saving...' : editing ? 'Save Changes' : 'Add School/District'}
           </button>
         </div>
       </Modal>
@@ -561,6 +737,12 @@ export default function SchoolsPage() {
           </button>
         </div>
       </Modal>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
