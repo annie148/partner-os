@@ -560,6 +560,11 @@ export default function SchoolDetailPage() {
               <span className="text-sm text-gray-900">{account.contractCap || '—'}</span>
             </EditableCell>
           </EField>
+          <EField label="Contract Signed">
+            <EditableCell value={account.contractSigned} fieldType="date" onSave={(v) => saveField('contractSigned', v)}>
+              <span className="text-sm text-gray-900">{formatDate(account.contractSigned)}</span>
+            </EditableCell>
+          </EField>
           <EField label="Partner Dashboard">
             <EditableCell value={account.partnerDashboardLink} onSave={(v) => saveField('partnerDashboardLink', v)}>
               {account.partnerDashboardLink ? (

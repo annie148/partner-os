@@ -120,6 +120,7 @@ const EMPTY: Omit<Account, 'id'> = {
   testWindow: '',
   matchedStudents: '',
   assessmentFollowUpNotes: '',
+  contractSigned: '',
 }
 
 type SortKey = keyof Account

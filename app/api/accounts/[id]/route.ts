@@ -53,6 +53,7 @@ export async function PUT(
       body.testWindow || '',
       body.matchedStudents || '',
       body.assessmentFollowUpNotes || '',
+      body.contractSigned || '',
     ])
     return NextResponse.json({ ok: true })
   } catch (e) {

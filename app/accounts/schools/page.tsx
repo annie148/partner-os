@@ -347,12 +347,13 @@ function SchoolsPage() {
     ['matchedStudents', 'Matched Students'],
     ['districtAssessmentMath', 'Assessment (Math)'],
     ['districtAssessmentReading', 'Assessment (Reading)'],
+    ['contractSigned', 'Contract Signed'],
   ]
 
   // +1 for the Links column
   const { widths, onMouseDown } = useColumnResize(COLUMNS.length + 1, 120)
   const { hiddenKeys, toggle: toggleColumn, isVisible } = useColumnVisibility('schools', [
-    'dsaStatus', 'mouStatus', 'dataReceived', 'matchedStudents', 'districtAssessmentMath', 'districtAssessmentReading',
+    'dsaStatus', 'mouStatus', 'dataReceived', 'matchedStudents', 'districtAssessmentMath', 'districtAssessmentReading', 'contractSigned',
   ])
 
   const hasFilters = search || filterType || filterPriority || filterOwner || filterRegion || filterLevel
@@ -576,6 +577,9 @@ function SchoolsPage() {
                         <span className="text-gray-600 text-xs">{inherit('districtAssessmentReading') || '—'}</span>,
                       ]
                     })(),
+                    <EditableCell value={a.contractSigned} fieldType="date" onSave={(v) => saveField(a, 'contractSigned', v)}>
+                      <span className="text-gray-600">{formatDate(a.contractSigned)}</span>
+                    </EditableCell>,
                   ]
                   return (
                     <tr key={a.id} className="hover:bg-gray-50 group">

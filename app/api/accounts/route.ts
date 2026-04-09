@@ -44,6 +44,7 @@ function rowToAccount(row: string[]): Account {
     testWindow: row[37] || '',
     matchedStudents: row[38] || '',
     assessmentFollowUpNotes: row[39] || '',
+    contractSigned: row[40] || '',
   }
 }
 
@@ -89,6 +90,7 @@ function accountToRow(account: Omit<Account, 'id'>, id: string): string[] {
     account.testWindow || '',
     account.matchedStudents || '',
     account.assessmentFollowUpNotes || '',
+    account.contractSigned || '',
   ]
 }
 

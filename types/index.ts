@@ -81,6 +81,7 @@ export interface Account {
   testWindow: string
   matchedStudents: string
   assessmentFollowUpNotes: string
+  contractSigned: string
 }
 
 export interface Region {

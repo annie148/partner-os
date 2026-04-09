@@ -44,6 +44,7 @@ function rowToAccount(row: string[]): Account {
     testWindow: row[37] || '',
     matchedStudents: row[38] || '',
     assessmentFollowUpNotes: row[39] || '',
+    contractSigned: row[40] || '',
   }
 }
 
