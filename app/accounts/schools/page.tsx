@@ -723,6 +723,16 @@ function SchoolsPage() {
           <Field label="EOY Data">
             <input type="number" value={form.eoyData || ''} onChange={(e) => setForm({ ...form, eoyData: e.target.value })} className={input} placeholder="0" />
           </Field>
+          <Field label="MOY Data Shared">
+            <select value={form.moyDataShared || 'N/A'} onChange={(e) => setForm({ ...form, moyDataShared: e.target.value as Account['moyDataShared'] })} className={input}>
+              {DATA_SHARED_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </Field>
+          <Field label="EOY Data Shared">
+            <select value={form.eoyDataShared || 'N/A'} onChange={(e) => setForm({ ...form, eoyDataShared: e.target.value as Account['eoyDataShared'] })} className={input}>
+              {DATA_SHARED_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </Field>
           <Field label="Math Curriculum">
             <input type="text" value={form.mathCurriculum || ''} onChange={(e) => setForm({ ...form, mathCurriculum: e.target.value })} className={input} placeholder="Math curriculum" />
           </Field>

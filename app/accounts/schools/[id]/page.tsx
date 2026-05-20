@@ -545,10 +545,6 @@ export default function SchoolDetailPage() {
           )
         }
 
-        // Show section if account is District/CMO, or if it has a parent, or if it has any of these fields set
-        const hasData = inheritFields.some((f) => account[f])
-        if (!isDistrict && !parent && !hasData) return null
-
         return (
           <Section title="Data Sharing &amp; Assessment">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
