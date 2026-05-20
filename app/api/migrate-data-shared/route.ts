@@ -49,7 +49,34 @@ async function run(apply: boolean) {
       }
     }
 
+    let gridExpanded = false
     if (apply) {
+      // Ensure the Accounts grid is wide enough to fit columns AU (47) and AV (48).
+      const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID })
+      const accountsSheet = meta.data.sheets?.find(
+        (sh) => sh.properties?.title === 'Accounts'
+      )
+      const sheetId = accountsSheet?.properties?.sheetId
+      const currentColumnCount = accountsSheet?.properties?.gridProperties?.columnCount ?? 0
+      const NEEDED_COLUMNS = 48 // through AV
+      if (sheetId !== undefined && currentColumnCount < NEEDED_COLUMNS) {
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: SHEET_ID,
+          requestBody: {
+            requests: [
+              {
+                appendDimension: {
+                  sheetId,
+                  dimension: 'COLUMNS',
+                  length: NEEDED_COLUMNS - currentColumnCount,
+                },
+              },
+            ],
+          },
+        })
+        gridExpanded = true
+      }
+
       const batchData: { range: string; values: string[][] }[] = [
         { range: 'Accounts!AU1', values: [['MOY Data Shared']] },
         { range: 'Accounts!AV1', values: [['EOY Data Shared']] },
@@ -69,6 +96,7 @@ async function run(apply: boolean) {
 
     return NextResponse.json({
       mode: apply ? 'applied' : 'dry-run',
+      gridExpanded,
       headersWritten: apply ? ['MOY Data Shared (AU1)', 'EOY Data Shared (AV1)'] : [],
       backfillCount: toBackfill.length,
       backfilled: toBackfill.map(({ name, type, moy, eoy }) => ({
