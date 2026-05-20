@@ -7,8 +7,8 @@ import EditableCell from '@/components/EditableCell'
 import { useColumnResize } from '@/hooks/useColumnResize'
 import { useColumnVisibility } from '@/hooks/useColumnVisibility'
 import ColumnToggle from '@/components/ColumnToggle'
-import type { Account, AccountType, Priority, Owner, EngagementType, Contact } from '@/types'
-import { SCHOOL_TYPES } from '@/types'
+import type { Account, AccountType, Priority, Owner, EngagementType, Contact, ContractType } from '@/types'
+import { SCHOOL_TYPES, CONTRACT_TYPES, DATA_SHARED_OPTIONS } from '@/types'
 import Link from 'next/link'
 import {
   Plus,
@@ -90,7 +90,7 @@ function SchoolsPage() {
 
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('')
-  const [filterPriority, setFilterPriority] = useState('')
+  const [filterContractType, setFilterContractType] = useState('')
   const [filterOwner, setFilterOwner] = useState('')
   const [filterRegion, setFilterRegion] = useState('')
   const [filterLevel, setFilterLevel] = useState('')
@@ -157,7 +157,7 @@ function SchoolsPage() {
       )
     }
     if (filterType) list = list.filter((a) => a.type === filterType)
-    if (filterPriority) list = list.filter((a) => a.priority === filterPriority)
+    if (filterContractType) list = list.filter((a) => a.contractType === filterContractType)
     if (filterOwner) list = list.filter((a) => a.owner === filterOwner)
     if (filterRegion) list = list.filter((a) => a.region === filterRegion)
     if (filterLevel) list = list.filter((a) => a.accountLevel === filterLevel)
@@ -169,7 +169,7 @@ function SchoolsPage() {
         : String(bv).localeCompare(String(av))
     })
     return list
-  }, [accounts, search, filterType, filterPriority, filterOwner, filterRegion, filterLevel, sortKey, sortDir])
+  }, [accounts, search, filterType, filterContractType, filterOwner, filterRegion, filterLevel, sortKey, sortDir])
 
   const primaryContactMap = useMemo(() => {
     const map: Record<string, Contact> = {}
@@ -261,7 +261,7 @@ function SchoolsPage() {
 
   function openAdd() {
     setEditing(null)
-    setForm({ type: 'Prospective' as AccountType, priority: 'Medium', owner: 'Annie', ...(levelParam ? { accountLevel: levelParam as Account['accountLevel'] } : {}) })
+    setForm({ type: 'Prospective' as AccountType, priority: 'Medium', owner: 'Annie', moyDataShared: 'N/A', eoyDataShared: 'N/A', ...(levelParam ? { accountLevel: levelParam as Account['accountLevel'] } : {}) })
     setShowForm(true)
   }
 
@@ -322,7 +322,8 @@ function SchoolsPage() {
     ['name', 'Name'],
     ['accountLevel', 'Level'],
     ['_district', 'District'],
-    ['type', 'Type'],
+    ['type', 'Partner Type'],
+    ['contractType', 'Contract Type'],
     ['_contactName', 'Contact Name'],
     ['_contactEmail', 'Contact Email'],
     ['region', 'Region'],
@@ -348,15 +349,18 @@ function SchoolsPage() {
     ['districtAssessmentMath', 'Assessment (Math)'],
     ['districtAssessmentReading', 'Assessment (Reading)'],
     ['contractSigned', 'Contract Signed'],
+    ['moyDataShared', 'MOY Data Shared'],
+    ['eoyDataShared', 'EOY Data Shared'],
   ]
 
   // +1 for the Links column
   const { widths, onMouseDown } = useColumnResize(COLUMNS.length + 1, 120)
   const { hiddenKeys, toggle: toggleColumn, isVisible } = useColumnVisibility('schools', [
     'dsaStatus', 'mouStatus', 'dataReceived', 'matchedStudents', 'districtAssessmentMath', 'districtAssessmentReading', 'contractSigned',
+    'moyDataShared', 'eoyDataShared',
   ])
 
-  const hasFilters = search || filterType || filterPriority || filterOwner || filterRegion || filterLevel
+  const hasFilters = search || filterType || filterContractType || filterOwner || filterRegion || filterLevel
 
   const input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
 
@@ -398,7 +402,7 @@ function SchoolsPage() {
           />
         </div>
         <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">All Types</option>
+          <option value="">All Partner Types</option>
           {SCHOOL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -407,9 +411,9 @@ function SchoolsPage() {
           <option value="CMO">CMO</option>
           <option value="School">School</option>
         </select>
-        <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">All Priorities</option>
-          {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+        <select value={filterContractType} onChange={(e) => setFilterContractType(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">All Contract Types</option>
+          {CONTRACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <select value={filterOwner} onChange={(e) => setFilterOwner(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
           <option value="">All Owners</option>
@@ -421,7 +425,7 @@ function SchoolsPage() {
         </select>
         {hasFilters && (
           <button
-            onClick={() => { setSearch(''); setFilterType(''); setFilterPriority(''); setFilterOwner(''); setFilterRegion(''); setFilterLevel('') }}
+            onClick={() => { setSearch(''); setFilterType(''); setFilterContractType(''); setFilterOwner(''); setFilterRegion(''); setFilterLevel('') }}
             className="text-sm text-gray-400 hover:text-gray-600 px-2"
           >
             Clear filters
@@ -511,6 +515,13 @@ function SchoolsPage() {
                     <EditableCell value={a.type} fieldType="select" options={SCHOOL_TYPES} onSave={(v) => saveField(a, 'type', v)}>
                       <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">{a.type}</span>
                     </EditableCell>,
+                    <EditableCell value={a.contractType || ''} fieldType="select" options={['', ...CONTRACT_TYPES]} onSave={(v) => saveField(a, 'contractType', v)}>
+                      {a.contractType ? (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">{a.contractType}</span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </EditableCell>,
                     <span className="text-gray-600">{pc?.name || '—'}</span>,
                     pc?.email ? (
                       <a href={`mailto:${pc.email}`} className="text-indigo-600 hover:underline">{pc.email}</a>
@@ -580,6 +591,12 @@ function SchoolsPage() {
                     <EditableCell value={a.contractSigned} fieldType="date" onSave={(v) => saveField(a, 'contractSigned', v)}>
                       <span className="text-gray-600">{formatDate(a.contractSigned)}</span>
                     </EditableCell>,
+                    <EditableCell value={a.moyDataShared || 'N/A'} fieldType="select" options={DATA_SHARED_OPTIONS} onSave={(v) => saveField(a, 'moyDataShared', v)}>
+                      <span className="text-gray-600">{a.moyDataShared || 'N/A'}</span>
+                    </EditableCell>,
+                    <EditableCell value={a.eoyDataShared || 'N/A'} fieldType="select" options={DATA_SHARED_OPTIONS} onSave={(v) => saveField(a, 'eoyDataShared', v)}>
+                      <span className="text-gray-600">{a.eoyDataShared || 'N/A'}</span>
+                    </EditableCell>,
                   ]
                   return (
                     <tr key={a.id} className="hover:bg-gray-50 group">
@@ -629,9 +646,15 @@ function SchoolsPage() {
               <input type="text" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} className={input} />
             </Field>
           </div>
-          <Field label="Type">
+          <Field label="Partner Type">
             <select value={form.type || ''} onChange={(e) => setForm({ ...form, type: e.target.value as AccountType })} className={input}>
               {SCHOOL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </Field>
+          <Field label="Contract Type">
+            <select value={form.contractType || ''} onChange={(e) => setForm({ ...form, contractType: e.target.value as ContractType })} className={input}>
+              <option value="">— Select —</option>
+              {CONTRACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </Field>
           <Field label="Level">

@@ -274,7 +274,7 @@ export default function FundersPage() {
 
   const COLUMNS: [SortKey | '_contactName' | '_contactEmail', string][] = [
     ['name', 'Name'],
-    ['type', 'Type'],
+    ['type', 'Partner Type'],
     ['_contactName', 'Contact Name'],
     ['_contactEmail', 'Contact Email'],
     ['region', 'Region'],
@@ -331,7 +331,7 @@ export default function FundersPage() {
           />
         </div>
         <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">All Types</option>
+          <option value="">All Partner Types</option>
           {FUNDER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -482,7 +482,7 @@ export default function FundersPage() {
               <input type="text" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} className={input} />
             </Field>
           </div>
-          <Field label="Type">
+          <Field label="Partner Type">
             <select value={form.type || ''} onChange={(e) => setForm({ ...form, type: e.target.value as AccountType })} className={input}>
               {FUNDER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>

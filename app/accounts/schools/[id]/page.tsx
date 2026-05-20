@@ -8,7 +8,7 @@ import EditableCell from '@/components/EditableCell'
 import NotesDisplay from '@/components/NotesDisplay'
 import type { Account, Contact, Task, Activity, TaskStatus, Owner, Priority, EngagementType } from '@/types'
 import ActivityLog from '@/components/ActivityLog'
-import { SCHOOL_TYPES } from '@/types'
+import { SCHOOL_TYPES, CONTRACT_STATUSES, CONTRACT_TYPES, DATA_SHARED_OPTIONS } from '@/types'
 import { ArrowLeft, Plus, Pencil, Trash2, Mail, Phone, ExternalLink, Check, ChevronRight, ChevronDown } from 'lucide-react'
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
@@ -34,7 +34,7 @@ const PRIORITIES: Priority[] = ['High', 'Medium', 'Low']
 const OWNERS: Owner[] = ['Annie', 'Genesis', 'Sam', 'Gab', 'Krissy']
 const TASK_STATUSES: TaskStatus[] = ['Not Started', 'In Progress', 'Blocked', 'Complete']
 const ENGAGEMENT_TYPES: EngagementType[] = ['High Level', 'Medium Level', 'Low Level']
-const OBC_STATUSES = ['Complete', 'In Progress', 'Not Started', 'N/A']
+const OBC_STATUSES = [...CONTRACT_STATUSES]
 const DSA_STATUSES = ['Signed', 'Sent', 'In Progress', 'Not Started', 'N/A']
 const MOU_STATUSES = ['Signed', 'Sent', 'In Progress', 'Not Started', 'N/A']
 const MATH_CURRICULA = ['Eureka Math', 'iReady', 'Illustrative Mathematics', 'enVision', 'HMH Into Math', 'Saxon Math', 'Other']
@@ -74,6 +74,35 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div className="bg-white border border-gray-200 rounded-xl p-5 mb-6">
       <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">{title}</h2>
       {children}
+    </div>
+  )
+}
+
+function DateRangeField({ label, startValue, endValue, onSaveStart, onSaveEnd }: {
+  label: string
+  startValue: string
+  endValue: string
+  onSaveStart: (v: string) => void
+  onSaveEnd: (v: string) => void
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{label}</p>
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <p className="text-[10px] text-gray-400 mb-0.5">From</p>
+          <EditableCell value={startValue} fieldType="date" onSave={async (v) => { onSaveStart(v) }}>
+            <span className="text-sm text-gray-900">{startValue ? formatDate(startValue) : '—'}</span>
+          </EditableCell>
+        </div>
+        <span className="text-gray-300 mt-4">&rarr;</span>
+        <div className="flex-1">
+          <p className="text-[10px] text-gray-400 mb-0.5">To</p>
+          <EditableCell value={endValue} fieldType="date" onSave={async (v) => { onSaveEnd(v) }}>
+            <span className="text-sm text-gray-900">{endValue ? formatDate(endValue) : '—'}</span>
+          </EditableCell>
+        </div>
+      </div>
     </div>
   )
 }
@@ -189,24 +218,28 @@ export default function SchoolDetailPage() {
     const prev = account
     const updated = { ...account, [field]: value }
     setAccount(updated)
-    fetch(`/api/accounts/${account.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
-    })
-      .catch(() => { setAccount(prev); setToast('Failed to save. Please try again.') })
+    try {
+      const res = await fetch(`/api/accounts/${account.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      if (!res.ok) { setAccount(prev); setToast('Failed to save. Please try again.') }
+    } catch { setAccount(prev); setToast('Failed to save. Please try again.') }
   }
 
   async function saveAccountField(acc: Account, field: keyof Account, value: string) {
     const prevAccounts = allAccounts
     const updated = { ...acc, [field]: value }
     setAllAccounts(allAccounts.map((a) => a.id === acc.id ? updated : a))
-    fetch(`/api/accounts/${acc.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
-    })
-      .catch(() => { setAllAccounts(prevAccounts); setToast('Failed to save. Please try again.') })
+    try {
+      const res = await fetch(`/api/accounts/${acc.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      if (!res.ok) { setAllAccounts(prevAccounts); setToast('Failed to save. Please try again.') }
+    } catch { setAllAccounts(prevAccounts); setToast('Failed to save. Please try again.') }
   }
 
   async function toggleTaskComplete(task: Task) {
@@ -415,7 +448,7 @@ export default function SchoolDetailPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200">
-                    {['Name', 'Type', 'Region', 'Priority', 'Owner'].map((h) => (
+                    {['Name', 'Partner Type', 'Region', 'Priority', 'Owner'].map((h) => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -476,7 +509,7 @@ export default function SchoolDetailPage() {
       {(() => {
         const parent = account.parentDistrictId ? allAccounts.find((a) => a.id === account.parentDistrictId) : null
         const isDistrict = account.accountLevel === 'District' || account.accountLevel === 'CMO'
-        const inheritFields: (keyof Account)[] = ['dsaStatus', 'mouStatus', 'dataReceived', 'matchedStudents', 'districtAssessmentMath', 'districtAssessmentReading', 'testWindow', 'assessmentFollowUpNotes']
+        const inheritFields: (keyof Account)[] = ['dsaStatus', 'mouStatus', 'dataReceived', 'matchedStudents', 'districtAssessmentMath', 'districtAssessmentReading', 'testWindow', 'assessmentFollowUpNotes', 'boyData', 'boyDataEnd', 'moyData', 'moyDataEnd', 'eoyData', 'eoyDataEnd', 'midpointDate', 'eoyMeeting']
 
         // For schools: show inherited values from parent if own value is empty
         const getVal = (field: keyof Account) => account[field] || ''
@@ -532,6 +565,66 @@ export default function SchoolDetailPage() {
             <div className="mt-5">
               {renderField('assessmentFollowUpNotes', 'Assessment Follow Up Notes', { textarea: true })}
             </div>
+            {/* Data Windows & Meetings */}
+            <div className="mt-6 pt-5 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">Data Windows & Meetings</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <DateRangeField
+                  label="BOY Data Window"
+                  startValue={getVal('boyData')}
+                  endValue={getVal('boyDataEnd')}
+                  onSaveStart={(v) => saveField('boyData', v)}
+                  onSaveEnd={(v) => {
+                    if (v && account.boyData && v < account.boyData) { setToast('End date must be on or after start date'); return }
+                    saveField('boyDataEnd', v)
+                  }}
+                />
+                <DateRangeField
+                  label="MOY Data Window"
+                  startValue={getVal('moyData')}
+                  endValue={getVal('moyDataEnd')}
+                  onSaveStart={(v) => saveField('moyData', v)}
+                  onSaveEnd={(v) => {
+                    if (v && account.moyData && v < account.moyData) { setToast('End date must be on or after start date'); return }
+                    saveField('moyDataEnd', v)
+                  }}
+                />
+                <DateRangeField
+                  label="EOY Data Window"
+                  startValue={getVal('eoyData')}
+                  endValue={getVal('eoyDataEnd')}
+                  onSaveStart={(v) => saveField('eoyData', v)}
+                  onSaveEnd={(v) => {
+                    if (v && account.eoyData && v < account.eoyData) { setToast('End date must be on or after start date'); return }
+                    saveField('eoyDataEnd', v)
+                  }}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+                <EField label="MOY Data Shared">
+                  <EditableCell value={account.moyDataShared || 'N/A'} fieldType="select" options={DATA_SHARED_OPTIONS} onSave={(v) => saveField('moyDataShared', v)}>
+                    <span className="text-sm text-gray-900">{account.moyDataShared || 'N/A'}</span>
+                  </EditableCell>
+                </EField>
+                <EField label="EOY Data Shared">
+                  <EditableCell value={account.eoyDataShared || 'N/A'} fieldType="select" options={DATA_SHARED_OPTIONS} onSave={(v) => saveField('eoyDataShared', v)}>
+                    <span className="text-sm text-gray-900">{account.eoyDataShared || 'N/A'}</span>
+                  </EditableCell>
+                </EField>
+              </div>
+              <div className="grid grid-cols-2 gap-5 mt-5">
+                <EField label="Midpoint Meeting">
+                  <EditableCell value={account.midpointDate} fieldType="date" onSave={(v) => saveField('midpointDate', v)}>
+                    <span className="text-sm text-gray-900">{formatDate(account.midpointDate)}</span>
+                  </EditableCell>
+                </EField>
+                <EField label="EOY Meeting">
+                  <EditableCell value={account.eoyMeeting} fieldType="date" onSave={(v) => saveField('eoyMeeting', v)}>
+                    <span className="text-sm text-gray-900">{formatDate(account.eoyMeeting)}</span>
+                  </EditableCell>
+                </EField>
+              </div>
+            </div>
           </Section>
         )
       })()}
@@ -545,6 +638,15 @@ export default function SchoolDetailPage() {
                 <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ENGAGEMENT_COLORS[account.engagementType] || 'bg-gray-100 text-gray-600'}`}>
                   {account.engagementType}
                 </span>
+              ) : (
+                <span className="text-sm text-gray-400">—</span>
+              )}
+            </EditableCell>
+          </EField>
+          <EField label="Contract Type">
+            <EditableCell value={account.contractType || ''} fieldType="select" options={['', ...CONTRACT_TYPES]} onSave={(v) => saveField('contractType', v)}>
+              {account.contractType ? (
+                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">{account.contractType}</span>
               ) : (
                 <span className="text-sm text-gray-400">—</span>
               )}
@@ -601,19 +703,9 @@ export default function SchoolDetailPage() {
         </div>
       </Section>
 
-      {/* Assessment & Curriculum */}
-      <Section title="Assessment & Curriculum">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
-          <EField label="Assessment Name">
-            <EditableCell value={account.assessmentName} onSave={(v) => saveField('assessmentName', v)}>
-              <span className="text-sm text-gray-900">{account.assessmentName || '—'}</span>
-            </EditableCell>
-          </EField>
-          <EField label="DSA Status">
-            <EditableCell value={account.dsaStatus} fieldType="select" options={DSA_STATUSES} onSave={(v) => saveField('dsaStatus', v)}>
-              <span className="text-sm text-gray-900">{account.dsaStatus || '—'}</span>
-            </EditableCell>
-          </EField>
+      {/* Curriculum */}
+      <Section title="Curriculum">
+        <div className="grid grid-cols-2 gap-5">
           <EField label="Math Curriculum">
             <EditableCell value={account.mathCurriculum} fieldType="select" options={MATH_CURRICULA} onSave={(v) => saveField('mathCurriculum', v)}>
               <span className="text-sm text-gray-900">{account.mathCurriculum || '—'}</span>
@@ -627,31 +719,6 @@ export default function SchoolDetailPage() {
         </div>
       </Section>
 
-      {/* Data */}
-      <Section title="Data">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-          <EField label="BOY Data">
-            <EditableCell value={account.boyData} fieldType="date" onSave={(v) => saveField('boyData', v)}>
-              <span className="text-sm text-gray-900">{formatDate(account.boyData)}</span>
-            </EditableCell>
-          </EField>
-          <EField label="MOY Data">
-            <EditableCell value={account.moyData} fieldType="date" onSave={(v) => saveField('moyData', v)}>
-              <span className="text-sm text-gray-900">{formatDate(account.moyData)}</span>
-            </EditableCell>
-          </EField>
-          <EField label="EOY Data">
-            <EditableCell value={account.eoyData} fieldType="date" onSave={(v) => saveField('eoyData', v)}>
-              <span className="text-sm text-gray-900">{formatDate(account.eoyData)}</span>
-            </EditableCell>
-          </EField>
-          <EField label="Midpoint Date">
-            <EditableCell value={account.midpointDate} fieldType="date" onSave={(v) => saveField('midpointDate', v)}>
-              <span className="text-sm text-gray-900">{formatDate(account.midpointDate)}</span>
-            </EditableCell>
-          </EField>
-        </div>
-      </Section>
 
       {/* Tasks */}
       {(() => {

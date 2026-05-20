@@ -109,6 +109,7 @@ const EMPTY: Omit<Account, 'id'> = {
   granolaNotesUrl: '',
   obcStatus: '',
   contractCap: '',
+  contractType: '',
   dsaStatus: '',
   district: '',
   parentDistrictId: '',
@@ -121,6 +122,12 @@ const EMPTY: Omit<Account, 'id'> = {
   matchedStudents: '',
   assessmentFollowUpNotes: '',
   contractSigned: '',
+  boyDataEnd: '',
+  moyDataEnd: '',
+  eoyDataEnd: '',
+  eoyMeeting: '',
+  moyDataShared: '',
+  eoyDataShared: '',
 }
 
 type SortKey = keyof Account
@@ -251,7 +258,7 @@ export default function AccountsPage() {
 
   const COLUMNS: [SortKey, string][] = [
     ['name', 'Name'],
-    ['type', 'Type'],
+    ['type', 'Partner Type'],
     ['accountLevel', 'Level'],
     ['region', 'Region'],
     ['priority', 'Priority'],
@@ -479,7 +486,7 @@ export default function AccountsPage() {
           onChange={(e) => setFilterType(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
-          <option value="">All Types</option>
+          <option value="">All Partner Types</option>
           {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         <select
@@ -649,7 +656,7 @@ export default function AccountsPage() {
               />
             </Field>
           </div>
-          <Field label="Type">
+          <Field label="Partner Type">
             <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as AccountType })} className={select}>
               {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>

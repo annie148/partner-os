@@ -129,7 +129,7 @@ tests/
 
 ### Tabs & Column Mappings
 
-**Accounts** (41 fields — columns extend beyond Z):
+**Accounts** (48 fields — columns extend beyond Z):
 | Index | Column | Field |
 |-------|--------|-------|
 | 0 | A | id (UUID) |
@@ -146,6 +146,13 @@ tests/
 | 13-25 | N-Z | goal, principal, engagementType, links, dates, data, curriculum, granolaNotesUrl, obcStatus, contractCap, dsaStatus, district, parentDistrictId |
 | 26-39 | AA-AN | accountLevel, mouStatus, dataReceived, districtAssessmentMath, districtAssessmentReading, testWindow, matchedStudents, assessmentFollowUpNotes |
 | 40 | AO | contractSigned (date, schools/districts only) |
+| 41 | AP | boyDataEnd (BOY Data Window end date) |
+| 42 | AQ | moyDataEnd (MOY Data Window end date) |
+| 43 | AR | eoyDataEnd (EOY Data Window end date) |
+| 44 | AS | eoyMeeting (EOY Meeting date) |
+| 45 | AT | contractType (Free/OBC/Grant/Pilot, schools/districts only) |
+| 46 | AU | moyDataShared (Yes/No/N/A, schools/districts only) |
+| 47 | AV | eoyDataShared (Yes/No/N/A, schools/districts only) |
 
 **Contacts** (columns A-H): id, accountId, accountName, name, email, phone, role, notes
 

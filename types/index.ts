@@ -38,6 +38,15 @@ export type AskStatus =
 export type EngagementType = 'High Level' | 'Medium Level' | 'Low Level'
 export type AccountLevel = 'District' | 'CMO' | 'School' | ''
 
+export type ContractStatus = 'Shared' | 'Interested' | 'Contract Sent' | 'Contract Signed' | 'Declined'
+export const CONTRACT_STATUSES: ContractStatus[] = ['Shared', 'Interested', 'Contract Sent', 'Contract Signed', 'Declined']
+
+export type ContractType = 'Free' | 'OBC' | 'Grant' | 'Pilot'
+export const CONTRACT_TYPES: ContractType[] = ['Free', 'OBC', 'Grant', 'Pilot']
+
+export type DataShared = 'Yes' | 'No' | 'N/A' | ''
+export const DATA_SHARED_OPTIONS: Exclude<DataShared, ''>[] = ['Yes', 'No', 'N/A']
+
 export interface Account {
   id: string
   name: string
@@ -68,7 +77,7 @@ export interface Account {
   mathCurriculum: string
   elaCurriculum: string
   granolaNotesUrl: string
-  obcStatus: string
+  obcStatus: ContractStatus | ''
   contractCap: string
   dsaStatus: string
   district: string
@@ -82,6 +91,13 @@ export interface Account {
   matchedStudents: string
   assessmentFollowUpNotes: string
   contractSigned: string
+  boyDataEnd: string
+  moyDataEnd: string
+  eoyDataEnd: string
+  eoyMeeting: string
+  contractType: ContractType | ''
+  moyDataShared: DataShared
+  eoyDataShared: DataShared
 }
 
 export interface Region {

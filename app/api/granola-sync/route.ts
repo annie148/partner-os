@@ -130,7 +130,7 @@ function rowToAccount(row: string[]): Account {
     mathCurriculum: row[24] || '',
     elaCurriculum: row[25] || '',
     granolaNotesUrl: row[26] || '',
-    obcStatus: row[27] || '',
+    obcStatus: (row[27] || '') as Account['obcStatus'],
     contractCap: row[28] || '',
     dsaStatus: row[29] || '',
     district: row[30] || '',
@@ -144,6 +144,13 @@ function rowToAccount(row: string[]): Account {
     matchedStudents: row[38] || '',
     assessmentFollowUpNotes: row[39] || '',
     contractSigned: row[40] || '',
+    boyDataEnd: row[41] || '',
+    moyDataEnd: row[42] || '',
+    eoyDataEnd: row[43] || '',
+    eoyMeeting: row[44] || '',
+    contractType: (row[45] || '') as Account['contractType'],
+    moyDataShared: (row[46] || '') as Account['moyDataShared'],
+    eoyDataShared: (row[47] || '') as Account['eoyDataShared'],
   }
 }
 
@@ -286,8 +293,8 @@ export async function POST(req: NextRequest) {
             ? `${existingNotes}\n${summaryLine}`
             : summaryLine
 
-          // Pad row to at least 40 columns (A-AN) so sparse rows don't lose data
-          const updatedRow = Array.from({ length: 40 }, (_, i) => accountRows[idx][i] || '')
+          // Pad row to at least 46 columns (A-AT) so sparse rows don't lose data
+          const updatedRow = Array.from({ length: 46 }, (_, i) => accountRows[idx][i] || '')
           updatedRow[6] = today // lastContactDate
           updatedRow[9] = updatedNotes // notes
           await updateRow('Accounts', idx, updatedRow)
@@ -329,7 +336,7 @@ export async function POST(req: NextRequest) {
             item.dueDate || '',
             'Not Started',
             `From Granola: ${note.title}`,
-            '',
+            matchedAccount.region || '',
             '',
             'Other',
           ])

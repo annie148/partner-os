@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRows, appendRow } from '@/lib/sheets'
-import type { Account } from '@/types'
+import type { Account, DataShared } from '@/types'
+import { SCHOOL_TYPES } from '@/types'
 
 function rowToAccount(row: string[]): Account {
+  const type = (row[2] || '') as Account['type']
+  const isSchool = SCHOOL_TYPES.includes(type)
+  const dataShared = (raw: string | undefined): DataShared => {
+    const v = (raw || '') as DataShared
+    if (v === 'Yes' || v === 'No' || v === 'N/A') return v
+    return isSchool ? 'N/A' : ''
+  }
   return {
     id: row[0] || '',
     name: row[1] || '',
-    type: (row[2] || '') as Account['type'],
+    type,
     region: row[3] || '',
     priority: (row[4] || '') as Account['priority'],
     owner: (row[5] || '') as Account['owner'],
@@ -31,7 +39,7 @@ function rowToAccount(row: string[]): Account {
     mathCurriculum: row[24] || '',
     elaCurriculum: row[25] || '',
     granolaNotesUrl: row[26] || '',
-    obcStatus: row[27] || '',
+    obcStatus: (row[27] || '') as Account['obcStatus'],
     contractCap: row[28] || '',
     dsaStatus: row[29] || '',
     district: row[30] || '',
@@ -45,10 +53,22 @@ function rowToAccount(row: string[]): Account {
     matchedStudents: row[38] || '',
     assessmentFollowUpNotes: row[39] || '',
     contractSigned: row[40] || '',
+    boyDataEnd: row[41] || '',
+    moyDataEnd: row[42] || '',
+    eoyDataEnd: row[43] || '',
+    eoyMeeting: row[44] || '',
+    contractType: (row[45] || '') as Account['contractType'],
+    moyDataShared: dataShared(row[46]),
+    eoyDataShared: dataShared(row[47]),
   }
 }
 
 function accountToRow(account: Omit<Account, 'id'>, id: string): string[] {
+  const isSchool = SCHOOL_TYPES.includes(account.type)
+  const dataSharedOut = (v: DataShared | undefined): string => {
+    if (v === 'Yes' || v === 'No' || v === 'N/A') return v
+    return isSchool ? 'N/A' : ''
+  }
   return [
     id,
     account.name,
@@ -91,6 +111,13 @@ function accountToRow(account: Omit<Account, 'id'>, id: string): string[] {
     account.matchedStudents || '',
     account.assessmentFollowUpNotes || '',
     account.contractSigned || '',
+    account.boyDataEnd || '',
+    account.moyDataEnd || '',
+    account.eoyDataEnd || '',
+    account.eoyMeeting || '',
+    account.contractType || '',
+    dataSharedOut(account.moyDataShared),
+    dataSharedOut(account.eoyDataShared),
   ]
 }
 

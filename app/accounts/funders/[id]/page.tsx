@@ -192,11 +192,14 @@ export default function FunderDetailPage() {
     const prev = account
     const updated = { ...account, [field]: value }
     setAccount(updated)
-    fetch(`/api/accounts/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated),
-    }).catch(() => { setAccount(prev); setToast('Failed to save. Please try again.') })
+    try {
+      const res = await fetch(`/api/accounts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      if (!res.ok) { setAccount(prev); setToast('Failed to save. Please try again.') }
+    } catch { setAccount(prev); setToast('Failed to save. Please try again.') }
   }
 
   async function toggleTaskComplete(task: Task) {

@@ -31,7 +31,7 @@ function rowToAccount(row: string[]): Account {
     mathCurriculum: row[24] || '',
     elaCurriculum: row[25] || '',
     granolaNotesUrl: row[26] || '',
-    obcStatus: row[27] || '',
+    obcStatus: (row[27] || '') as Account['obcStatus'],
     contractCap: row[28] || '',
     dsaStatus: row[29] || '',
     district: row[30] || '',
@@ -45,6 +45,13 @@ function rowToAccount(row: string[]): Account {
     matchedStudents: row[38] || '',
     assessmentFollowUpNotes: row[39] || '',
     contractSigned: row[40] || '',
+    boyDataEnd: row[41] || '',
+    moyDataEnd: row[42] || '',
+    eoyDataEnd: row[43] || '',
+    eoyMeeting: row[44] || '',
+    contractType: (row[45] || '') as Account['contractType'],
+    moyDataShared: (row[46] || '') as Account['moyDataShared'],
+    eoyDataShared: (row[47] || '') as Account['eoyDataShared'],
   }
 }
 
