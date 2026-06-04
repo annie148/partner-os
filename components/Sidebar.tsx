@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { LayoutDashboard, Building2, Users, CheckSquare, DollarSign, GraduationCap, MapPin, School, Landmark } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, CheckSquare, DollarSign, GraduationCap, MapPin, School, Landmark, TrendingUp } from 'lucide-react'
 
 const nav = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/accounts', label: 'Accounts', icon: Building2 },
   { href: '/regions', label: 'Regions', icon: MapPin },
+  { href: '/revenue', label: 'Revenue', icon: TrendingUp },
   { href: '/contacts', label: 'Contacts', icon: Users },
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
 ]

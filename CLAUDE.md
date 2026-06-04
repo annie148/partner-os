@@ -34,6 +34,8 @@ app/
   regions/
     page.tsx                  # Region management
     [name]/page.tsx           # Region detail
+  revenue/
+    page.tsx                  # Revenue pipeline — all opportunities across schools/districts (sortable/filterable table with totals; CSV export of filtered set)
   api/
     accounts/route.ts         # GET all, POST create (returns { id } for new accounts)
     accounts/[id]/route.ts    # PUT update, DELETE
@@ -61,6 +63,8 @@ app/
     seed-account-levels/route.ts   # Seed account levels
     migrate-school-types/route.ts  # One-time migration: GET=dry-run, POST=apply (batch update)
     import-regional-priorities/route.ts  # One-time import: regional goals + tasks from planning doc (2026-03-24)
+    opportunities/route.ts    # GET all, POST create (auto-creates Opportunities tab if missing)
+    opportunities/[id]/route.ts  # PUT update, DELETE
 components/
   Modal.tsx                   # Reusable modal (sizes: sm, md, lg, xl)
   EditableCell.tsx            # Inline cell editing (text, select, date, number, textarea)
@@ -75,6 +79,7 @@ lib/
   ai-parse.ts                 # Claude-powered meeting note parsing
   granola.ts                  # Granola API client (fetch notes, get content)
   gmail.ts                    # Gmail API (task emails, reminders, daily digests)
+  forecast.ts                 # Confidence weights + forecastAmount helper (computed, never persisted)
 hooks/
   useColumnResize.ts          # Drag-to-resize table columns
   useColumnVisibility.ts      # LocalStorage-based column show/hide toggle
@@ -170,6 +175,12 @@ tests/
 - For region activities, `accountId` stores the region name (not an account UUID)
 
 **GranolaSync** (columns A-D): noteId, title, matchedAccount, processedAt
+
+**Opportunities** (columns A-I): id, accountId, name, projectedAmount, confidence, stage, contractType, closedWonExpected, notes
+- Stage values (own enumerated list, NOT derived from account Status): `Shared` | `Interested` | `Contract Sent` | `Verbally Committed` | `Contract Signed` | `Declined`
+- Confidence is `1` | `2` | `3`; weights live in `lib/forecast.ts` (`CONFIDENCE_WEIGHTS`).
+- Tab is auto-created on first use (GET returns empty array, POST creates it). Same lazy-create pattern as Activity.
+- School/district only by convention — UI only surfaces this section on school/district account detail pages, not funder pages. The API does not enforce this; it's a UI concern.
 
 ### Gotchas & Known Issues
 
@@ -294,6 +305,14 @@ Color coding: gray (Not Started), blue (In Progress), orange/amber (Blocked), gr
 
 Color coding: purple (Follow-up), sky (Outreach), gray (Internal), light gray (Other). Type badges shown on dashboard task lists and tasks table. Editable inline and in task form.
 
+### Opportunity Stage
+`Shared` | `Interested` | `Contract Sent` | `Verbally Committed` | `Contract Signed` | `Declined`
+
+Own enumerated list on opportunities. Does NOT derive from the account-level Status (`AccountType`) field — the two are independent even where values resemble each other. Exported as `OPPORTUNITY_STAGES` from `types/index.ts`.
+
+### Confidence (Opportunities)
+`1` | `2` | `3` with weights `1 → 10%`, `2 → 45%`, `3 → 90%`. Weights are defined once in `lib/forecast.ts` (`CONFIDENCE_WEIGHTS`). Always compute forecast via the `forecastAmount(opp)` helper — never inline `projectedAmount × weight`. Forecast is computed at display time and never persisted to the sheet.
+
 ### Regions
 `AZ` | `Bay Area` | `DC` | `LA` | `National` | `NY` | `SF` | `San Jose`
 
@@ -310,6 +329,7 @@ Accounts
       +-- Schools        -> /accounts/schools?level=School
       +-- Districts      -> /accounts/schools?level=District
 Regions
+Revenue
 Contacts
 Tasks
 ```
@@ -336,6 +356,7 @@ Tasks
 - API routes use `rowToX()` / `xToRow()` helpers to convert between objects and sheet arrays
 - Components using `useSearchParams` must be wrapped in `<Suspense>` (Next.js requirement for static prerendering)
 - `STATUS_COLORS` for task badges is defined locally in each file that renders them (tasks/page, tasks/[id], accounts/schools/[id], accounts/funders/[id]) rather than shared
+- Revenue forecast is computed only via `forecastAmount(opp)` from `lib/forecast.ts`. Never persist the result. Confidence weights are defined once in that module — do not duplicate `{ 1: 0.10, 2: 0.45, 3: 0.90 }` anywhere else.
 
 ## Known Issues
 - Column resize can crash with "Cannot read properties of null (reading 'index')" error; refreshing clears it. Likely a stale ref or event handler cleanup issue.

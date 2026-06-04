@@ -47,6 +47,25 @@ export const CONTRACT_TYPES: ContractType[] = ['Free', 'OBC', 'Grant', 'Pilot']
 export type DataShared = 'Yes' | 'No' | 'N/A' | ''
 export const DATA_SHARED_OPTIONS: Exclude<DataShared, ''>[] = ['Yes', 'No', 'N/A']
 
+export type OpportunityStage =
+  | 'Shared'
+  | 'Interested'
+  | 'Contract Sent'
+  | 'Verbally Committed'
+  | 'Contract Signed'
+  | 'Declined'
+export const OPPORTUNITY_STAGES: OpportunityStage[] = [
+  'Shared',
+  'Interested',
+  'Contract Sent',
+  'Verbally Committed',
+  'Contract Signed',
+  'Declined',
+]
+
+export type Confidence = 1 | 2 | 3
+export const CONFIDENCE_LEVELS: Confidence[] = [1, 2, 3]
+
 export interface Account {
   id: string
   name: string
@@ -144,4 +163,16 @@ export interface Task {
   region: string
   completedDate: string
   type: TaskType
+}
+
+export interface Opportunity {
+  id: string
+  accountId: string
+  name: string
+  projectedAmount: string
+  confidence: Confidence
+  stage: OpportunityStage | ''
+  contractType: ContractType | ''
+  closedWonExpected: string
+  notes: string
 }

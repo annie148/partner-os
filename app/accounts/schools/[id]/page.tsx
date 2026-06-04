@@ -6,9 +6,10 @@ import Link from 'next/link'
 import Modal from '@/components/Modal'
 import EditableCell from '@/components/EditableCell'
 import NotesDisplay from '@/components/NotesDisplay'
-import type { Account, Contact, Task, Activity, TaskStatus, Owner, Priority, EngagementType } from '@/types'
+import type { Account, Contact, Task, Activity, TaskStatus, Owner, Priority, EngagementType, Opportunity, Confidence } from '@/types'
 import ActivityLog from '@/components/ActivityLog'
-import { SCHOOL_TYPES, CONTRACT_STATUSES, CONTRACT_TYPES, DATA_SHARED_OPTIONS } from '@/types'
+import { SCHOOL_TYPES, CONTRACT_STATUSES, CONTRACT_TYPES, DATA_SHARED_OPTIONS, OPPORTUNITY_STAGES } from '@/types'
+import { forecastAmount, CONFIDENCE_WEIGHTS } from '@/lib/forecast'
 import { ArrowLeft, Plus, Pencil, Trash2, Mail, Phone, ExternalLink, Check, ChevronRight, ChevronDown } from 'lucide-react'
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
@@ -50,10 +51,25 @@ const EMPTY_CONTACT: Omit<Contact, 'id'> = {
   notes: '',
 }
 
+const EMPTY_OPPORTUNITY: Omit<Opportunity, 'id'> = {
+  accountId: '',
+  name: '',
+  projectedAmount: '',
+  confidence: 1,
+  stage: '',
+  contractType: '',
+  closedWonExpected: '',
+  notes: '',
+}
+
 function formatDate(d: string) {
   if (!d) return '—'
   const [y, m, day] = d.split('-')
   return `${m}/${day}/${y}`
+}
+
+function formatCurrency(n: number) {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 }
 
 function today() {
@@ -123,6 +139,7 @@ export default function SchoolDetailPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([])
   const [regions, setRegions] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -133,6 +150,13 @@ export default function SchoolDetailPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const [showOppForm, setShowOppForm] = useState(false)
+  const [editingOpp, setEditingOpp] = useState<Opportunity | null>(null)
+  const [oppForm, setOppForm] = useState<Omit<Opportunity, 'id'>>(EMPTY_OPPORTUNITY)
+  const [savingOpp, setSavingOpp] = useState(false)
+  const [deleteOppTarget, setDeleteOppTarget] = useState<Opportunity | null>(null)
+  const [deletingOpp, setDeletingOpp] = useState(false)
   const [showCompleted, setShowCompleted] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -153,7 +177,8 @@ export default function SchoolDetailPage() {
       fetch('/api/tasks').then((r) => r.json()),
       fetch('/api/activities').then((r) => r.json()),
       fetch('/api/regions').then((r) => r.json()),
-    ]).then(([accountData, allContacts, allTasks, allActivities, regionData]) => {
+      fetch('/api/opportunities').then((r) => r.json()),
+    ]).then(([accountData, allContacts, allTasks, allActivities, regionData, allOpps]) => {
       const accounts: Account[] = Array.isArray(accountData) ? accountData : []
       setAllAccounts(accounts)
       const acc = accounts.find((a) => a.id === id)
@@ -161,6 +186,7 @@ export default function SchoolDetailPage() {
       setContacts((Array.isArray(allContacts) ? allContacts : []).filter((c: Contact) => c.accountId === id))
       setTasks((Array.isArray(allTasks) ? allTasks : []).filter((t: Task) => t.accountId === id))
       setActivities((Array.isArray(allActivities) ? allActivities : []).filter((a: Activity) => a.accountId === id))
+      setOpportunities((Array.isArray(allOpps) ? allOpps : []).filter((o: Opportunity) => o.accountId === id))
       setRegions((Array.isArray(regionData) ? regionData : []).map((r: { regionName: string }) => r.regionName).sort())
       setLoading(false)
     })
@@ -269,6 +295,74 @@ export default function SchoolDetailPage() {
       })
       if (!res.ok) { setTasks(prevTasks); setToast('Failed to save task. Please try again.') }
     } catch { setTasks(prevTasks); setToast('Failed to save task. Please try again.') }
+  }
+
+  function openAddOpp() {
+    setEditingOpp(null)
+    setOppForm({ ...EMPTY_OPPORTUNITY, accountId: id })
+    setShowOppForm(true)
+  }
+
+  function openEditOpp(o: Opportunity) {
+    setEditingOpp(o)
+    setOppForm({
+      accountId: o.accountId,
+      name: o.name,
+      projectedAmount: o.projectedAmount,
+      confidence: o.confidence,
+      stage: o.stage,
+      contractType: o.contractType,
+      closedWonExpected: o.closedWonExpected,
+      notes: o.notes,
+    })
+    setShowOppForm(true)
+  }
+
+  async function handleSaveOpp() {
+    if (!oppForm.name.trim()) return
+    setSavingOpp(true)
+    try {
+      if (editingOpp) {
+        await fetch(`/api/opportunities/${editingOpp.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...oppForm, id: editingOpp.id }),
+        })
+      } else {
+        await fetch('/api/opportunities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(oppForm),
+        })
+      }
+      setShowOppForm(false)
+      load()
+    } finally {
+      setSavingOpp(false)
+    }
+  }
+
+  async function handleDeleteOpp() {
+    if (!deleteOppTarget) return
+    setDeletingOpp(true)
+    await fetch(`/api/opportunities/${deleteOppTarget.id}`, { method: 'DELETE' })
+    setDeleteOppTarget(null)
+    setDeletingOpp(false)
+    load()
+  }
+
+  async function saveOppField(opp: Opportunity, field: keyof Opportunity, value: string | number) {
+    const prevOpps = opportunities
+    const updated = { ...opp, [field]: value } as Opportunity
+    setOpportunities(opportunities.map((o) => o.id === opp.id ? updated : o))
+    try {
+      const res = await fetch(`/api/opportunities/${opp.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      if (!res.ok) { setOpportunities(prevOpps); setToast('Failed to save opportunity. Please try again.') }
+    } catch { setOpportunities(prevOpps); setToast('Failed to save opportunity. Please try again.') }
   }
 
   if (loading) {
@@ -716,6 +810,91 @@ export default function SchoolDetailPage() {
       </Section>
 
 
+      {/* Opportunities */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold text-gray-900">Opportunities ({opportunities.length})</h2>
+        <button
+          onClick={openAddOpp}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+        >
+          <Plus size={14} /> Add Opportunity
+        </button>
+      </div>
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
+        {opportunities.length === 0 ? (
+          <div className="p-6 text-center text-sm text-gray-400">No opportunities for this account yet.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                {['Name', 'Stage', 'Projected', 'Confidence', 'Forecast', 'Contract Type', 'Closed Won Expected'].map((h) => (
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                ))}
+                <th className="px-4 py-3 w-16" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {opportunities.map((o) => {
+                const forecast = forecastAmount(o)
+                const projected = Number(o.projectedAmount)
+                return (
+                  <tr key={o.id} className="hover:bg-gray-50 group">
+                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+                      <EditableCell value={o.name} onSave={(v) => saveOppField(o, 'name', v)}>
+                        <span>{o.name || '—'}</span>
+                      </EditableCell>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <EditableCell value={o.stage} fieldType="select" options={[...OPPORTUNITY_STAGES]} onSave={(v) => saveOppField(o, 'stage', v)}>
+                        <span className="text-gray-700">{o.stage || '—'}</span>
+                      </EditableCell>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <EditableCell value={o.projectedAmount} fieldType="number" onSave={(v) => saveOppField(o, 'projectedAmount', v)}>
+                        <span className="text-gray-900">{Number.isFinite(projected) && o.projectedAmount ? formatCurrency(projected) : '—'}</span>
+                      </EditableCell>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <EditableCell value={String(o.confidence)} fieldType="select" options={['1', '2', '3']} onSave={(v) => saveOppField(o, 'confidence', Number(v) as Confidence)}>
+                        <span className="text-gray-700">{o.confidence}</span>
+                      </EditableCell>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                      {forecast > 0 ? formatCurrency(forecast) : '—'}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <EditableCell value={o.contractType} fieldType="select" options={[...CONTRACT_TYPES]} onSave={(v) => saveOppField(o, 'contractType', v)}>
+                        {o.contractType ? (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">{o.contractType}</span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </EditableCell>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <EditableCell value={o.closedWonExpected} fieldType="date" onSave={(v) => saveOppField(o, 'closedWonExpected', v)}>
+                        <span className="text-gray-700">{formatDate(o.closedWonExpected)}</span>
+                      </EditableCell>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openEditOpp(o)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                          <Pencil size={13} />
+                        </button>
+                        <button onClick={() => setDeleteOppTarget(o)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+
       {/* Tasks */}
       {(() => {
         const openTasks = tasks.filter((t) => t.status !== 'Complete')
@@ -902,6 +1081,66 @@ export default function SchoolDetailPage() {
           <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
           <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
             {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Add/Edit Opportunity Modal */}
+      <Modal isOpen={showOppForm} onClose={() => setShowOppForm(false)} title={editingOpp ? 'Edit Opportunity' : 'Add Opportunity'} size="md">
+        <div className="space-y-4">
+          <Field label="Name *">
+            <input type="text" value={oppForm.name} onChange={(e) => setOppForm({ ...oppForm, name: e.target.value })} className={input} placeholder="e.g. SY26 OBC contract" />
+          </Field>
+          <Field label="Stage">
+            <select value={oppForm.stage} onChange={(e) => setOppForm({ ...oppForm, stage: e.target.value as Opportunity['stage'] })} className={input}>
+              <option value="">— None —</option>
+              {OPPORTUNITY_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Projected Amount">
+              <input type="number" value={oppForm.projectedAmount} onChange={(e) => setOppForm({ ...oppForm, projectedAmount: e.target.value })} className={input} placeholder="0" />
+            </Field>
+            <Field label="Confidence">
+              <select value={oppForm.confidence} onChange={(e) => setOppForm({ ...oppForm, confidence: Number(e.target.value) as Confidence })} className={input}>
+                {[1, 2, 3].map((c) => (
+                  <option key={c} value={c}>{c} — {Math.round(CONFIDENCE_WEIGHTS[c as Confidence] * 100)}%</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Contract Type">
+              <select value={oppForm.contractType} onChange={(e) => setOppForm({ ...oppForm, contractType: e.target.value as Opportunity['contractType'] })} className={input}>
+                <option value="">— None —</option>
+                {CONTRACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </Field>
+            <Field label="Closed Won Expected">
+              <input type="date" value={oppForm.closedWonExpected} onChange={(e) => setOppForm({ ...oppForm, closedWonExpected: e.target.value })} className={input} />
+            </Field>
+          </div>
+          <Field label="Notes">
+            <textarea value={oppForm.notes} onChange={(e) => setOppForm({ ...oppForm, notes: e.target.value })} className={`${input} resize-none`} rows={3} />
+          </Field>
+        </div>
+        <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-100">
+          <button onClick={() => setShowOppForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={handleSaveOpp} disabled={savingOpp || !oppForm.name.trim()} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+            {savingOpp ? 'Saving...' : editingOpp ? 'Save Changes' : 'Add Opportunity'}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Delete Opportunity Confirm */}
+      <Modal isOpen={!!deleteOppTarget} onClose={() => setDeleteOppTarget(null)} title="Delete Opportunity" size="sm">
+        <p className="text-sm text-gray-600">
+          Are you sure you want to delete <strong>{deleteOppTarget?.name}</strong>?
+        </p>
+        <div className="flex justify-end gap-2 mt-6">
+          <button onClick={() => setDeleteOppTarget(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={handleDeleteOpp} disabled={deletingOpp} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+            {deletingOpp ? 'Deleting...' : 'Delete'}
           </button>
         </div>
       </Modal>
